@@ -41,7 +41,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch("/api/planner", { cache: "no-store" });
       if (!response.ok) throw new Error("Planner API unavailable");
       const payload = (await response.json()) as { state: PlannerState; updatedAt?: string };
-      setState(normalizePlannerState(payload.state));
+      setState(ensurePlannerState(normalizePlannerState(payload.state)));
+      setState(sortPlannerCollections(ensurePlannerState(normalizePlannerState(payload.state))));
+      
       setUpdatedAt(payload.updatedAt ?? null);
       dirty.current = false;
       setSyncStatus("saved");
@@ -190,7 +192,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const importData = React.useCallback(async (file: File) => {
     try {
-      const parsed = normalizePlannerState(JSON.parse(await file.text()));
+      const parsed = ensurePlannerState(normalizePlannerState(JSON.parse(await file.text())));
       dirty.current = true;
       setState(parsed);
       toast.success("Данные импортированы");
