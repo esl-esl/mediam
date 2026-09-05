@@ -3,7 +3,7 @@
 import * as React from "react";
 import { DashboardView } from "./views-dashboard";
 import { GradesView, MaterialsView } from "./views-grades-materials";
-import { ActivitiesView, SettingsView, ThesisView } from "./views-growth";
+import { ActivitiesView, DiplomaView, ResearchWorksView, SettingsView } from "./views-growth";
 import { SubjectView } from "./views-subject";
 import { CalendarView, TasksView } from "./views-tasks-calendar";
 import { AnalyticsView } from "./views-analytics";
@@ -83,9 +83,13 @@ export function PlannerView({
     case "materials":
       view = <MaterialsView />;
       break;
-    case "thesis":
     case "diploma":
-      view = <ThesisView />;
+      view = <DiplomaView />;
+      break;
+    case "thesis":
+    case "coursework":
+    case "research":
+      view = <ResearchWorksView />;
       break;
     case "activities":
       view = <ActivitiesView onAddActivity={onAddActivity} />;
