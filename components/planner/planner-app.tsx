@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, BookOpen, CalendarDays, ChartNoAxesColumnIncreasing, CheckCircle2, ChevronRight,
   CircleUserRound, Cloud, CloudOff, FileStack, FolderOpen, GraduationCap, Home, LibraryBig,
-  Layers3, ListTodo, LoaderCircle, Moon, Plus, ScrollText, Search, Settings2, Sparkles, Sun, WifiOff,
+  Layers3, ListTodo, LoaderCircle, Monitor, Moon, Plus, ScrollText, Search, Settings2, Sparkles, Sun, WifiOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { compareSubjectsByStudyOrder, formatSubjectModules, subjectModules } from "@/lib/planner-utils";
 import { academicCalendarState, currentAcademicCourse } from "@/lib/academic-calendar";
 import { SubjectIcon } from "./subject-icon";
+import { MobileStartup } from "./mobile-startup";
 
 const mainNav = [
   { href: "/", label: "Главная", icon: Home },
@@ -177,7 +178,8 @@ function Workspace({ initialRoute }: { initialRoute: string[] }) {
   }, []);
 
   const title = routeTitle(pathname, state.subjects);
-  const toggleTheme = () => mutate((draft) => { draft.profile.theme = draft.profile.theme === "dark" ? "light" : "dark"; });
+  const themeOptions = [{ value: "light", label: "Светлая", icon: Sun }, { value: "dark", label: "Тёмная", icon: Moon }, { value: "system", label: "Как в системе", icon: Monitor }] as const;
+  const ThemeIcon = themeOptions.find((item) => item.value === state.profile.theme)?.icon ?? Monitor;
 
   return (
     <SidebarProvider defaultOpen>
@@ -194,7 +196,7 @@ function Workspace({ initialRoute }: { initialRoute: string[] }) {
             <SyncIndicator />
             <Button variant="outline" size="sm" className="hidden min-w-48 justify-between rounded-lg text-muted-foreground lg:flex" onClick={() => setSearchOpen(true)}><span className="flex items-center gap-2"><Search className="size-4" />Поиск</span><kbd className="rounded bg-muted px-1.5 py-0.5 text-[11px]">⌘K</kbd></Button>
             <Button variant="ghost" size="icon" className="rounded-lg lg:hidden" onClick={() => setSearchOpen(true)} aria-label="Поиск"><Search /></Button>
-            <Button variant="ghost" size="icon" className="rounded-lg" onClick={toggleTheme} aria-label="Сменить тему">{state.profile.theme === "dark" ? <Sun /> : <Moon />}</Button>
+            <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-lg" aria-label="Тема"><ThemeIcon /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuLabel>Оформление</DropdownMenuLabel>{themeOptions.map((item) => <DropdownMenuItem key={item.value} onSelect={() => mutate((draft) => { draft.profile.theme = item.value; })}><item.icon />{item.label}{state.profile.theme === item.value ? <span className="ml-auto text-[#0050CF]">✓</span> : null}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button size="sm" className="rounded-lg bg-[#0050CF] hover:bg-[#0045B5]"><Plus /> <span className="hidden sm:inline">Добавить</span></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56"><DropdownMenuLabel>Быстрое создание</DropdownMenuLabel><DropdownMenuItem onSelect={() => setTaskOpen(true)}><ListTodo />Задачу</DropdownMenuItem><DropdownMenuItem onSelect={() => setNoteOpen(true)}><BookOpen />Конспект</DropdownMenuItem><DropdownMenuItem onSelect={() => setMaterialOpen(true)}><LibraryBig />Ссылку или источник</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => setSubjectOpen(true)}><FileStack />Дисциплину</DropdownMenuItem><DropdownMenuItem onSelect={() => setActivityOpen(true)}><Activity />Активность</DropdownMenuItem></DropdownMenuContent>
@@ -203,7 +205,7 @@ function Workspace({ initialRoute }: { initialRoute: string[] }) {
         </header>
         <PlannerView route={initialRoute} onAddTask={() => setTaskOpen(true)} onAddSubject={() => setSubjectOpen(true)} onAddNote={() => setNoteOpen(true)} onAddActivity={() => setActivityOpen(true)} />
         <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-2xl border border-border/80 bg-white/90 p-1.5 shadow-[0_16px_50px_rgba(15,23,42,.18)] backdrop-blur-xl md:hidden dark:bg-[#182235]/90">
-          {[mainNav[0], mainNav[1], mainNav[3], mainNav[5], growthNav[0]].map((item) => <Link key={item.href} href={item.href} className={cn("flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[11px] text-muted-foreground", pathname === item.href && "bg-[#0050CF]/10 text-[#0050CF]")}><item.icon className="size-5" /><span className="truncate">{item.label}</span></Link>)}
+          {[mainNav[0], mainNav[2], mainNav[3], mainNav[5], mainNav[4]].map((item) => <Link key={item.href} href={item.href} className={cn("flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[11px] text-muted-foreground", pathname === item.href && "bg-[#0050CF]/10 text-[#0050CF]")}><item.icon className="size-5" /><span className="truncate">{item.label}</span></Link>)}
         </nav>
         <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
         <TaskDialog open={taskOpen} onOpenChange={setTaskOpen} />
@@ -218,5 +220,5 @@ function Workspace({ initialRoute }: { initialRoute: string[] }) {
 }
 
 export function PlannerApp({ initialRoute }: { initialRoute: string[] }) {
-  return <PlannerProvider><Workspace initialRoute={initialRoute} /></PlannerProvider>;
+  return <PlannerProvider><MobileStartup /><Workspace initialRoute={initialRoute} /></PlannerProvider>;
 }
