@@ -336,10 +336,22 @@ export function createSeedState(base = new Date()): PlannerState {
       { id: "mat-mm-slides", subjectId: "media-management", name: "Бизнес-модели медиакомпаний", label: "Презентация · неделя 1", kind: "presentation", storage: "link", url: "https://edu.hse.ru/", createdAt: iso(today, -2) },
       { id: "mat-nis-book", subjectId: "research-seminar", name: "Как организовать и представить исследовательский проект", label: "В. В. Радаев · учебник", kind: "textbook", storage: "link", url: "https://znanium.ru/catalog/product/2017208", createdAt: iso(today, -1) },
     ],
+    coursework: {
+      title: "Курсовая работа 1 курса",
+      blocks: [
+        { id: "coursework-object", title: "Объект и предмет", content: "" },
+        { id: "coursework-tasks", title: "Задачи", content: "" },
+      ],
+      supervisor: "Руководитель не выбран",
+      stage: "Выбор темы и исследовательского вопроса",
+      progress: 0,
+      researchQuestion: "",
+      chapters: [],
+      milestones: [],
+    },
     thesis: {
       title: "Рабочая тема магистерской диссертации",
       blocks: [
-        { id: "thesis-question", title: "Исследовательский вопрос", content: "Как управленческие решения медиакомпаний влияют на развитие новых цифровых форматов?" },
         { id: "thesis-object", title: "Объект и предмет", content: "Добавьте объект, предмет и границы исследования." },
         { id: "thesis-tasks", title: "Задачи", content: "1. Собрать теоретическую рамку\n2. Выбрать кейсы\n3. Разработать методику\n4. Провести анализ" },
       ],
