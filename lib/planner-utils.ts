@@ -78,7 +78,7 @@ export function sortPlannerCollections(state: PlannerState) {
 export function formatSubjectModules(subject: Subject) {
   const modules = subjectModules(subject);
   if (modules.length === 4) return "М1–4";
-  if (modules.length > 1 && modules.every((value, index) => index === 0 || value === modules[index - 1] + 1)) return `М${modules[0]}–${modules.at(-1)}`;
+  if (modules.length > 1 && modules.every((value, index) => index === 0 || value === modules[index - 1] + 1)) return `М${modules[0]}–${modules[modules.length - 1]}`;
   return modules.map((module) => `М${module}`).join(", ");
 }
 
@@ -97,9 +97,15 @@ function normalizedNumericScore(value: number, min: number, max: number) {
   return Math.max(0, Math.min(10, ((value - min) / (max - min)) * 10));
 }
 
-export function gradeComponentScore(part: GradeComponent, lessons: CourseLesson[] = []) {
+export function gradeComponentCalculatedScore(part: GradeComponent, lessons: CourseLesson[] = []) {
   const marks = formulaMarksForComponent(part, lessons);
   return marks.length ? marks.reduce((sum, mark) => sum + mark.value, 0) / marks.length : 0;
+}
+
+export function gradeComponentScore(part: GradeComponent, lessons: CourseLesson[] = []) {
+  return part.overrideScore === null || part.overrideScore === undefined
+    ? gradeComponentCalculatedScore(part, lessons)
+    : clampFormulaScore(part.overrideScore);
 }
 
 function clampFormulaScore(value: unknown) {
@@ -135,17 +141,42 @@ export function formulaMarksForComponent(part: GradeComponent, lessons: CourseLe
   const automaticMarks = lessons
     .filter((lesson) => lesson.subjectId === part.subjectId && autoKinds.includes(lesson.kind))
     .sort(compareLessonsChronologically)
-    .map((lesson) => {
-      const numeric = lesson.assessmentFormat === "numeric" && lesson.assessmentValue.trim()
-        ? normalizedNumericScore(Number(lesson.assessmentValue), lesson.assessmentMin ?? 0, lesson.assessmentMax ?? 10)
-        : null;
-      return {
-        id: `${part.id}-${lesson.id}`,
+    .flatMap((lesson) => {
+      const assessments = Array.isArray(lesson.assessments) ? lesson.assessments : [];
+      const linked = assessments.filter((assessment) => {
+        if (assessment.format !== "numeric") return false;
+        if (assessment.criterionId === part.id) return true;
+        if (assessment.criterionId) return false;
+        return assessment.title.trim().toLocaleLowerCase("ru") === part.title.trim().toLocaleLowerCase("ru")
+          || (assessments.length === 1 && assessment.title === "Оценка");
+      });
+      if (linked.length) {
+        return linked.flatMap((assessment, assessmentIndex) => {
+          const values = assessment.values.length ? assessment.values : [""];
+          return values.map((value, valueIndex) => {
+            const numeric = value.trim()
+              ? normalizedNumericScore(Number(value), assessment.min ?? 0, assessment.max ?? 10)
+              : 0;
+            return {
+              id: `${part.id}-${lesson.id}-${assessment.id || assessmentIndex}-${valueIndex}`,
+              lessonId: lesson.id,
+              label: `${lessonKindLabels[lesson.kind]} ${lessonNumberLabel(lesson)} · ${assessment.title}`,
+              value: clampFormulaScore(numeric ?? 0),
+              source: "lesson" as const,
+            };
+          });
+        });
+      }
+      const legacy = !assessments.length && lesson.assessmentFormat === "numeric"
+        ? normalizedNumericScore(Number(lesson.assessmentValue || 0), lesson.assessmentMin ?? 0, lesson.assessmentMax ?? 10)
+        : 0;
+      return [{
+        id: `${part.id}-${lesson.id}-default`,
         lessonId: lesson.id,
         label: `${lessonKindLabels[lesson.kind]} ${lessonNumberLabel(lesson)}`,
-        value: clampFormulaScore(numeric ?? 0),
+        value: clampFormulaScore(legacy ?? 0),
         source: "lesson" as const,
-      };
+      }];
     });
   return [...manualMarks, ...automaticMarks];
 }
@@ -203,5 +234,6 @@ export function formatFileSize(bytes?: number) {
 }
 
 export function uid(prefix = "item") {
-  return `${prefix}-${crypto.randomUUID()}`;
+  if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
