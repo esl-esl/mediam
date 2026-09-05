@@ -482,7 +482,7 @@ body {
   box-shadow: 0 8px 20px rgba(35,61,105,.1);
 }
 
-.lesson-card-past { --lesson-accent: #94a3b8; background: #ffffff; opacity: .67; }
+.lesson-card-past { --lesson-accent: #94a3b8; background: #ffffff; }
 .lesson-card-active { --lesson-accent: #0050cf; border: 2px solid #0050cf; background: #ffffff; box-shadow: 0 0 0 3px rgba(0,80,207,.08), 0 10px 26px rgba(0,80,207,.13); }
 .lesson-card-next { --lesson-accent: #0050cf; border: 2px solid #0050cf; background: #ffffff; box-shadow: 0 10px 24px rgba(0,80,207,.11); }
 .lesson-card-future { --lesson-accent: #94a3b8; background: #ffffff; }
@@ -532,6 +532,71 @@ body {
   color: color-mix(in srgb, #d9472f 88%, var(--foreground));
   border-color: color-mix(in srgb, #f04438 24%, var(--border));
   background: color-mix(in srgb, #f04438 6%, var(--card));
+}
+
+.calendar-event-activity {
+  color: color-mix(in srgb, #008b6b 88%, var(--foreground));
+  border-color: color-mix(in srgb, #008b6b 24%, var(--border));
+  background: color-mix(in srgb, #008b6b 6%, var(--card));
+}
+
+.calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.calendar-legend i {
+  width: .55rem;
+  height: .55rem;
+  border-radius: .2rem;
+}
+
+.lesson-rail {
+  scroll-padding-inline: calc(50% - 119px);
+}
+
+.lesson-grade {
+  opacity: 1 !important;
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.rich-text-toolbar {
+  background: color-mix(in srgb, var(--muted) 72%, var(--card));
+}
+
+.rich-text-editor:empty::before {
+  content: "Начните писать конспект…";
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.rich-note-view {
+  min-height: 10rem;
+  white-space: normal;
+  font-size: .925rem;
+  line-height: 1.7;
+}
+
+.rich-note-view p { margin: .55rem 0; }
+.rich-note-view ul,
+.rich-note-view ol { margin: .55rem 0; padding-left: 1.4rem; }
+.rich-note-view ul { list-style: disc; }
+.rich-note-view ol { list-style: decimal; }
+
+.mobile-startup {
+  display: none;
+}
+
+.mobile-brand-mark {
+  display: grid;
+  color: #0050cf;
+  font-family: "HSE Sans", Arial, sans-serif;
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: .86;
+  letter-spacing: -.08em;
 }
 
 .calendar-side-item {
@@ -778,6 +843,79 @@ button, a, input, textarea, select {
 .dark .lesson-card-active,
 .dark .lesson-card-next {
   border-color: #6b9fff;
+}
+
+.dark .grade-table,
+.dark .grade-table tbody tr,
+.dark .calendar-day,
+.dark .calendar-side-item {
+  color: #f3f6fb;
+  background: #182235;
+}
+
+.dark .calendar-day-outside {
+  color: #8794a8;
+  background: #121b2b;
+}
+
+.dark .lesson-grade {
+  color: #f3f6fb;
+  background: #26344a;
+}
+
+@media (max-width: 767px) {
+  .mobile-startup {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3rem;
+    padding: max(1.5rem, env(safe-area-inset-top)) 1.25rem max(1.5rem, env(safe-area-inset-bottom));
+    background: var(--background);
+    text-align: center;
+  }
+
+  .mobile-welcome {
+    justify-content: space-between;
+    padding-top: max(5rem, env(safe-area-inset-top));
+    padding-bottom: max(3rem, calc(env(safe-area-inset-bottom) + 1.5rem));
+  }
+
+  .calendar-day {
+    min-height: 5.75rem;
+    padding: .25rem;
+  }
+
+  .calendar-day > button {
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: .75rem;
+  }
+
+  .calendar-event {
+    min-height: 1.2rem;
+    justify-content: center;
+    padding: .18rem;
+  }
+
+  .calendar-event-label,
+  .calendar-event-time {
+    display: none;
+  }
+
+  .calendar-event svg {
+    width: .7rem;
+    height: .7rem;
+  }
+
+  [data-slot="dialog-content"] {
+    width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+    border-radius: 1rem;
+  }
 }
 
 .dark .module-card-active {
