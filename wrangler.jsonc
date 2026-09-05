@@ -9,7 +9,7 @@
     {
       "binding": "DB",
       "database_name": "hse-study-planner-db",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "b5182074-faab-455b-812a-2fc4cae91192",
       "migrations_dir": "drizzle"
     }
   ],
