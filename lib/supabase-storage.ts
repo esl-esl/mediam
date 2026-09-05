@@ -11,7 +11,6 @@ function config() {
   const url = workerEnv.SUPABASE_URL?.trim().replace(/\/$/, "");
   const secretKey = workerEnv.SUPABASE_SECRET_KEY?.trim();
   const bucket = workerEnv.SUPABASE_STORAGE_BUCKET?.trim();
-
   const missing = [
     !url && "SUPABASE_URL",
     !secretKey && "SUPABASE_SECRET_KEY",
@@ -33,10 +32,16 @@ function storageUrl(path: string) {
 function authHeaders(extra?: HeadersInit) {
   const { secretKey } = config();
   const headers = new Headers(extra);
+
+  // New Supabase secret keys (sb_secret_...) are API keys, not JWTs.
+  // Send them in the apikey header only. Supabase maps them to service_role.
   headers.set("apikey", secretKey);
-  // Supabase Storage accepts the backend key through its normal Storage auth flow.
-  // For sb_secret_* keys the gateway maps this credential to service_role server-side.
-  headers.set("Authorization", `Bearer ${secretKey}`);
+
+  // Backwards compatibility for legacy JWT-based service_role keys.
+  if (!secretKey.startsWith("sb_secret_")) {
+    headers.set("Authorization", `Bearer ${secretKey}`);
+  }
+
   return headers;
 }
 
@@ -57,7 +62,7 @@ export async function uploadStoredFile(path: string, file: File, contentType: st
   });
 
   if (!response.ok) {
-    throw new Error(`Supabase upload failed: ${await storageError(response)}`);
+    throw new Error(`Supabase upload failed (${response.status}): ${await storageError(response)}`);
   }
 }
 
@@ -69,13 +74,15 @@ export async function downloadStoredFile(path: string) {
 
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`Supabase download failed: ${await storageError(response)}`);
+    throw new Error(`Supabase download failed (${response.status}): ${await storageError(response)}`);
   }
+
   return response;
 }
 
 export async function deleteStoredFiles(paths: string[]) {
   if (!paths.length) return;
+
   const { url, bucket } = config();
   const response = await fetch(`${url}/storage/v1/object/${encodeURIComponent(bucket)}`, {
     method: "DELETE",
@@ -84,6 +91,6 @@ export async function deleteStoredFiles(paths: string[]) {
   });
 
   if (!response.ok) {
-    throw new Error(`Supabase delete failed: ${await storageError(response)}`);
+    throw new Error(`Supabase delete failed (${response.status}): ${await storageError(response)}`);
   }
 }
