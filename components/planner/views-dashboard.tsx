@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { academicCalendarState, academicYearForCourse, currentAcademicCourse } from "@/lib/academic-calendar";
 import { compareSubjectsByStudyOrder, subjectModules } from "@/lib/planner-utils";
 import { cn } from "@/lib/utils";
+import { useClientNow } from "@/lib/use-client-now";
 import { usePlanner } from "./planner-provider";
 import { PageHeading, Panel, PanelHeader, TaskItem } from "./view-shared";
 import { SubjectIcon } from "./subject-icon";
@@ -36,7 +37,7 @@ function CourseSwitch({ value, onChange }: { value: number; onChange: (value: nu
 
 function ModuleNavigator({ course, onAddSubject, showAllLink = false, layout = "cards" }: { course: number; onAddSubject?: () => void; showAllLink?: boolean; layout?: "cards" | "list" }) {
   const { state } = usePlanner();
-  const today = new Date();
+  const today = useClientNow();
   const calendar = academicCalendarState(today, course);
   const periods = academicYearForCourse(course).periods;
   const activeModule = calendar.current?.module;
@@ -93,7 +94,8 @@ export function CoursesView({ onAddSubject }: { onAddSubject: () => void }) {
 export function DashboardView({ onAddTask, onAddSubject }: { onAddTask: () => void; onAddSubject: () => void }) {
   const { state } = usePlanner();
   const [course, setCourse] = React.useState<number>(currentAcademicCourse());
-  const calendar = academicCalendarState(new Date(), course);
+  const now = useClientNow();
+  const calendar = academicCalendarState(now, course);
   const deadlines = state.tasks.filter((task) => task.status !== "done").slice(0, 8);
   const periodTone = calendar.current?.type === "session" ? "academic-period-session" : calendar.current?.type === "break" ? "academic-period-break" : "academic-period-study";
   const periodLabel = calendar.current?.type === "session" ? "Сессия" : calendar.current?.type === "break" ? "Каникулы" : "Учебный период";
