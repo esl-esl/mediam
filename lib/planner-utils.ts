@@ -1,4 +1,4 @@
-import type { AssessmentFormat, CourseLesson, GradeComponent, LessonKind, PlannerState, StudyTask, Subject } from "./planner-types";
+import type { AssessmentFormat, CourseLesson, GradeComponent, GradeEntry, LessonKind, PlannerState, StudyTask, Subject } from "./planner-types";
 
 export const taskStatusLabels = {
   todo: "Нужно сделать",
@@ -39,18 +39,40 @@ export const assessmentFormatLabels: Record<AssessmentFormat, string> = {
 };
 
 export function subjectModules(subject: Subject) {
-  const modules =
-    Array.isArray(subject.modules) && subject.modules.length
-      ? subject.modules
-      : [subject.module];
+  const modules = subject.modules?.length ? subject.modules : [subject.module];
+  return [...new Set(modules.filter((item) => item >= 1 && item <= 4))].sort();
+}
 
-  return [
-    ...new Set(
-      modules
-        .map((item) => Number(item))
-        .filter((item) => Number.isFinite(item) && item >= 1 && item <= 4)
-    ),
-  ].sort((a, b) => a - b);
+function timeValue(value?: string) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+export function compareLessonsChronologically(a: CourseLesson, b: CourseLesson) {
+  const aTime = timeValue(a.date); const bTime = timeValue(b.date);
+  if (aTime !== bTime) return aTime < bTime ? -1 : 1;
+  return a.number - b.number || (a.title ?? "").localeCompare(b.title ?? "", "ru");
+}
+
+export function compareTasksChronologically(a: StudyTask, b: StudyTask) {
+  return timeValue(a.dueDate) - timeValue(b.dueDate) || timeValue(a.createdAt) - timeValue(b.createdAt) || a.title.localeCompare(b.title, "ru");
+}
+
+export function compareSubjectsByStudyOrder(a: Subject, b: Subject) {
+  return a.year - b.year || (subjectModules(a)[0] ?? 1) - (subjectModules(b)[0] ?? 1) || a.title.localeCompare(b.title, "ru");
+}
+
+export function sortPlannerCollections(state: PlannerState) {
+  state.subjects.sort(compareSubjectsByStudyOrder);
+  state.tasks.sort(compareTasksChronologically);
+  state.lessons.sort(compareLessonsChronologically);
+  state.activities.sort((a, b) => timeValue(a.date) - timeValue(b.date) || a.title.localeCompare(b.title, "ru"));
+  state.schedule.sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start));
+  state.diplomaGrades?.sort((a, b) => a.year - b.year || a.module - b.module || a.subject.localeCompare(b.subject, "ru"));
+  state.materials.sort((a, b) => timeValue(b.createdAt) - timeValue(a.createdAt));
+  state.notes.sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
+  return state;
 }
 
 export function formatSubjectModules(subject: Subject) {
@@ -60,18 +82,14 @@ export function formatSubjectModules(subject: Subject) {
   return modules.map((module) => `М${module}`).join(", ");
 }
 
-export function assessmentValueLabel(
-  format: AssessmentFormat,
-  value: string,
-  min = 0,
-  max = 10
-) {
-  const safeValue = String(value ?? "");
-  if (format === "none" || !safeValue.trim()) return "—";
-  if (format === "numeric") {
-    return `${safeValue} / ${max}${min ? ` (от ${min})` : ""}`;
-  }
-  return safeValue;
+export function assessmentValueLabel(format: AssessmentFormat, value: string, min = 0, max = 10) {
+  if (format === "none" || !value.trim()) return "—";
+  if (format === "numeric") return min === 0 && max === 10 ? value : `${value} / ${max}${min ? ` (от ${min})` : ""}`;
+  return value;
+}
+
+export function lessonNumberLabel(lesson: Pick<CourseLesson, "number" | "numberEnd">) {
+  return lesson.numberEnd && lesson.numberEnd > lesson.number ? `${lesson.number}–${lesson.numberEnd}` : String(lesson.number);
 }
 
 function normalizedNumericScore(value: number, min: number, max: number) {
@@ -80,37 +98,67 @@ function normalizedNumericScore(value: number, min: number, max: number) {
 }
 
 export function gradeComponentScore(part: GradeComponent, lessons: CourseLesson[] = []) {
-  if (part.calculation !== "lesson_average") {
-    if ((part.scoreFormat ?? "numeric") !== "numeric" || part.score === null) return null;
-    return normalizedNumericScore(part.score, part.minScore ?? 0, part.maxScore);
-  }
-  const scores = lessons
-    .filter(
-      (lesson) =>
-        lesson.subjectId === part.subjectId &&
-        (!part.lessonKind || lesson.kind === part.lessonKind) &&
-        lesson.assessmentFormat === "numeric" &&
-        String(lesson.assessmentValue ?? "").trim()
-    )
-    .map((lesson) => normalizedNumericScore(Number(lesson.assessmentValue), lesson.assessmentMin ?? 0, lesson.assessmentMax ?? 10))
-    .filter((score): score is number => score !== null);
-  return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
+  const marks = formulaMarksForComponent(part, lessons);
+  return marks.length ? marks.reduce((sum, mark) => sum + mark.value, 0) / marks.length : 0;
+}
+
+function clampFormulaScore(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.min(10, numeric)) : 0;
+}
+
+export type FormulaMark = {
+  id: string;
+  label: string;
+  value: number;
+  source: "manual" | "lesson";
+  lessonId?: string;
+};
+
+export function formulaMarksForComponent(part: GradeComponent, lessons: CourseLesson[] = []): FormulaMark[] {
+  const manual: GradeEntry[] = Array.isArray(part.gradeEntries)
+    ? part.gradeEntries
+    : part.calculation === "lesson_average"
+      ? []
+      : [{ id: `${part.id}-legacy`, value: part.score ?? 0 }];
+  const manualMarks = manual.map((entry, index) => ({
+    id: entry.id || `${part.id}-mark-${index + 1}`,
+    label: `Оценка ${index + 1}`,
+    value: clampFormulaScore(entry.value),
+    source: "manual" as const,
+  }));
+  const autoKinds = Array.isArray(part.autoLessonKinds)
+    ? part.autoLessonKinds
+    : part.calculation === "lesson_average" && part.lessonKind
+      ? [part.lessonKind]
+      : [];
+  const automaticMarks = lessons
+    .filter((lesson) => lesson.subjectId === part.subjectId && autoKinds.includes(lesson.kind))
+    .sort(compareLessonsChronologically)
+    .map((lesson) => {
+      const numeric = lesson.assessmentFormat === "numeric" && lesson.assessmentValue.trim()
+        ? normalizedNumericScore(Number(lesson.assessmentValue), lesson.assessmentMin ?? 0, lesson.assessmentMax ?? 10)
+        : null;
+      return {
+        id: `${part.id}-${lesson.id}`,
+        lessonId: lesson.id,
+        label: `${lessonKindLabels[lesson.kind]} ${lessonNumberLabel(lesson)}`,
+        value: clampFormulaScore(numeric ?? 0),
+        source: "lesson" as const,
+      };
+    });
+  return [...manualMarks, ...automaticMarks];
 }
 
 export function gradeForSubject(subjectId: string, grades: GradeComponent[], lessons: CourseLesson[] = []) {
   const parts = grades.filter((part) => part.subjectId === subjectId);
   const earned = parts.reduce((sum, part) => {
-    const score = gradeComponentScore(part, lessons);
-    if (score === null) return sum;
-    return sum + score * part.weight;
+    return sum + gradeComponentScore(part, lessons) * part.weight;
   }, 0);
-  const completedWeight = parts.reduce(
-    (sum, part) => sum + (gradeComponentScore(part, lessons) === null ? 0 : part.weight),
-    0,
-  );
+  const completedWeight = parts.reduce((sum, part) => sum + part.weight, 0);
   const totalWeight = parts.reduce((sum, part) => sum + part.weight, 0);
-  const forecast = completedWeight > 0 ? earned / completedWeight : 0;
-  return { earned, completedWeight, totalWeight, forecast, parts };
+  const average = earned;
+  return { earned, completedWeight, totalWeight, average, forecast: average, parts };
 }
 
 export function requiredAverage(subject: Subject, grades: GradeComponent[], lessons: CourseLesson[] = []) {
@@ -156,97 +204,4 @@ export function formatFileSize(bytes?: number) {
 
 export function uid(prefix = "item") {
   return `${prefix}-${crypto.randomUUID()}`;
-}
-
-const subjectStatusOrder: Record<Subject["status"], number> = {
-  required: 0,
-  elective: 1,
-  magolego: 2,
-};
-
-export function compareSubjectsByStudyOrder(a: Subject, b: Subject) {
-  const aModule = subjectModules(a)[0] ?? a.module ?? 99;
-  const bModule = subjectModules(b)[0] ?? b.module ?? 99;
-
-  return (
-    Number(a.year ?? 99) - Number(b.year ?? 99) ||
-    aModule - bModule ||
-    Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) ||
-    Number(subjectStatusOrder[a.status] ?? 99) -
-      Number(subjectStatusOrder[b.status] ?? 99) ||
-    String(a.shortTitle ?? a.title ?? "").localeCompare(
-      String(b.shortTitle ?? b.title ?? ""),
-      "ru"
-    )
-  );
-}
-
-export function compareLessonsChronologically(a: CourseLesson, b: CourseLesson) {
-  const aDate = String(a.date ?? "9999-12-31T23:59:59");
-  const bDate = String(b.date ?? "9999-12-31T23:59:59");
-
-  return (
-    aDate.localeCompare(bDate) ||
-    Number(a.number ?? 0) - Number(b.number ?? 0) ||
-    String(a.kind ?? "").localeCompare(String(b.kind ?? ""))
-  );
-}
-
-export function lessonNumberLabel(lesson: CourseLesson) {
-  return String(lesson.number);
-}
-
-export function sortPlannerCollections(state: PlannerState): PlannerState {
-  const safe = <T,>(value: T[] | null | undefined): T[] => Array.isArray(value) ? value : [];
-
-  const subjects = safe(state.subjects).map((subject) => ({
-    ...subject,
-    modules: safe(subject.modules).length ? safe(subject.modules) : [subject.module],
-    objectives: safe(subject.objectives),
-  }));
-
-  const tasks = safe(state.tasks).map((task) => ({
-    ...task,
-    subtasks: safe(task.subtasks),
-  }));
-
-  const lessons = safe(state.lessons).map((lesson) => ({
-    ...lesson,
-    topicIds: safe(lesson.topicIds),
-  }));
-
-  const notes = safe(state.notes).map((note) => ({
-    ...note,
-    tags: safe(note.tags),
-    lessonIds: safe(note.lessonIds),
-    topicIds: safe(note.topicIds),
-  }));
-
-  const materials = safe(state.materials).map((material) => ({
-    ...material,
-    lessonIds: safe(material.lessonIds),
-    topicIds: safe(material.topicIds),
-  }));
-
-  const thesis = state.thesis ?? ({ title: "Магистерская диссертация", blocks: [] } as PlannerState["thesis"]);
-
-  return {
-    ...state,
-    subjects: subjects.sort(compareSubjectsByStudyOrder),
-    tasks: tasks.sort((a, b) => String(a.dueDate ?? "").localeCompare(String(b.dueDate ?? "")) || String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? ""))),
-    grades: safe(state.grades).sort((a, b) => String(a.subjectId ?? "").localeCompare(String(b.subjectId ?? "")) || String(a.title ?? "").localeCompare(String(b.title ?? ""), "ru")),
-    topics: safe(state.topics).sort((a, b) => String(a.subjectId ?? "").localeCompare(String(b.subjectId ?? "")) || String(a.title ?? "").localeCompare(String(b.title ?? ""), "ru")),
-    lessons: lessons.sort((a, b) => String(a.subjectId ?? "").localeCompare(String(b.subjectId ?? "")) || compareLessonsChronologically(a, b)),
-    notes: notes.sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))),
-    schedule: safe(state.schedule).sort((a, b) => Number(a.weekday ?? 0) - Number(b.weekday ?? 0) || String(a.start ?? "").localeCompare(String(b.start ?? ""))),
-    materials: materials.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))),
-    activities: safe(state.activities).sort((a, b) => String(a.date ?? "").localeCompare(String(b.date ?? ""))),
-    sessions: safe(state.sessions).sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? ""))),
-    thesis: {
-      ...thesis,
-      blocks: safe(thesis.blocks),
-      chapters: safe(thesis.chapters),
-      milestones: safe(thesis.milestones),
-    },
-  };
 }
