@@ -25,6 +25,59 @@ interface ExecutionContext {
 // dangerouslyAllowSVG: true in next.config.js and uncomment below:
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
+/**
+ * App documents and React Server Component payloads must never survive a
+ * deployment in the browser cache. A stale document/RSC response can point at
+ * chunks from the previous build and leave Safari with a blank screen.
+ *
+ * Fingerprinted /_next/static/* assets are intentionally NOT changed here:
+ * vinext serves those as immutable build assets and they are safe to cache.
+ */
+function isDocumentOrRscRequest(request: Request, url: URL) {
+  const accept = request.headers.get("accept") ?? "";
+  const destination = request.headers.get("sec-fetch-dest") ?? "";
+
+  return (
+    destination === "document" ||
+    accept.includes("text/html") ||
+    accept.includes("text/x-component") ||
+    url.pathname.endsWith(".rsc") ||
+    url.searchParams.has("_rsc")
+  );
+}
+
+function withoutCacheValidators(request: Request) {
+  const headers = new Headers(request.headers);
+  headers.delete("if-none-match");
+  headers.delete("if-modified-since");
+
+  return new Request(request, { headers });
+}
+
+function withNoStore(response: Response) {
+  const headers = new Headers(response.headers);
+
+  // Browser cache / Safari page cache.
+  headers.set("Cache-Control", "private, no-store, max-age=0");
+  headers.set("Pragma", "no-cache");
+  headers.set("Expires", "0");
+
+  // Keep dynamic responses out of Cloudflare/CDN caches as well.
+  headers.set("CDN-Cache-Control", "no-store");
+  headers.set("Cloudflare-CDN-Cache-Control", "no-store");
+
+  // A dynamic response should not be validated against a representation from
+  // an older deployment.
+  headers.delete("ETag");
+  headers.delete("Last-Modified");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -40,7 +93,25 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    const pageOrRsc = isDocumentOrRscRequest(request, url);
+    const dynamicApi = url.pathname.startsWith("/api/");
+
+    // Do not let a conditional request reuse a document/RSC representation
+    // from a previous deployment. Static build assets keep their normal
+    // immutable caching path.
+    const appRequest = pageOrRsc && (request.method === "GET" || request.method === "HEAD")
+      ? withoutCacheValidators(request)
+      : request;
+
+    const response = await handler.fetch(appRequest, env, ctx);
+    const contentType = response.headers.get("content-type") ?? "";
+    const dynamicResponse =
+      pageOrRsc ||
+      dynamicApi ||
+      contentType.includes("text/html") ||
+      contentType.includes("text/x-component");
+
+    return dynamicResponse ? withNoStore(response) : response;
   },
 };
 
