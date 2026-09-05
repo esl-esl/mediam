@@ -34,6 +34,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function dateValue(value?: string) { return value ? value.slice(0, 10) : ""; }
 function storeDate(value: string) { return value ? `${value}T12:00:00.000Z` : undefined; }
 
+function colorWithAlpha(color: string, alpha: number) {
+  const normalized = color.replace("#", "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return color;
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function TopicEditorDialog({ open, onOpenChange, subjectId, topic, onUpload }: { open: boolean; onOpenChange: (value: boolean) => void; subjectId: string; topic?: CourseTopic | null; onUpload: (topicId: string) => void }) {
   const { state, mutate, removeMaterial } = usePlanner(); const [title, setTitle] = React.useState(""); const [notes, setNotes] = React.useState(""); const [lessonIds, setLessonIds] = React.useState<string[]>([]);
   const lessons = state.lessons.filter((item) => item.subjectId === subjectId).sort((a, b) => a.number - b.number);
@@ -72,14 +81,109 @@ type TimeTone = "past" | "active" | "next" | "future" | "undated";
 const timeToneMeta: Record<TimeTone, { label: string; className: string; dot: string }> = {
   past: { label: "Прошло", className: "border-slate-300/55 bg-slate-100/38 opacity-78 dark:border-slate-600/50 dark:bg-slate-800/32", dot: "bg-slate-400" },
   active: { label: "Сегодня", className: "border-amber-400/65 bg-amber-50/72 shadow-[0_10px_34px_rgba(245,158,11,.16),inset_0_1px_0_rgba(255,255,255,.8)] dark:bg-amber-950/26", dot: "bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,.8)]" },
-  next: { label: "Следующее", className: "border-blue-500/55 bg-blue-50/78 shadow-[0_12px_38px_rgba(0,80,207,.17),inset_0_1px_0_rgba(255,255,255,.9)] dark:bg-blue-950/28", dot: "bg-[#0050CF] shadow-[0_0_13px_rgba(0,80,207,.78)]" },
+  next: { label: "Следующее", className: "", dot: "" },
   future: { label: "Впереди", className: "border-violet-300/60 bg-violet-50/48 dark:border-violet-700/45 dark:bg-violet-950/18", dot: "bg-violet-400" },
   undated: { label: "Без даты", className: "border-border/65 bg-background/42", dot: "bg-muted-foreground/45" },
 };
 
-function LessonCard({ lesson, topics, tone, onOpen }: { lesson: CourseLesson; topics: CourseTopic[]; tone: TimeTone; onOpen: () => void }) {
-  const Icon = lessonIcons[lesson.kind]; const meta = timeToneMeta[tone]; const linked = topics.filter((topic) => lesson.topicIds.includes(topic.id));
-  return <button onClick={onOpen} className={cn("group flex min-h-36 flex-col rounded-[16px] border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-lg", meta.className)}><div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-[10px] border border-white/50 bg-background/55 shadow-[inset_0_1px_0_rgba(255,255,255,.8)] dark:border-white/8"><Icon className="size-4" /></span><span className="text-xs font-semibold text-muted-foreground">{lessonKindLabels[lesson.kind]} · {lesson.number}</span><span className={cn("ml-auto size-2 rounded-full", meta.dot)} /><span className="text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">{meta.label}</span></div><h3 className="mt-3 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-.02em]">{lesson.title || `${lessonKindLabels[lesson.kind]} ${lesson.number}`}</h3><div className="mt-2 flex flex-wrap gap-1">{linked.slice(0, 3).map((topic) => <span key={topic.id} className="max-w-full truncate rounded-full bg-background/65 px-2 py-0.5 text-[10px] text-muted-foreground">{topic.title}</span>)}{linked.length > 3 ? <span className="rounded-full bg-background/65 px-2 py-0.5 text-[10px] text-muted-foreground">+{linked.length - 3}</span> : null}</div><div className="mt-auto flex items-end justify-between gap-2 pt-3"><span className="text-xs text-muted-foreground">{lesson.date ? format(new Date(lesson.date), "d MMMM", { locale: ru }) : "Дата не указана"}</span><span className="rounded-lg bg-background/65 px-2 py-1 text-xs font-semibold">{assessmentValueLabel(lesson.assessmentFormat, lesson.assessmentValue, lesson.assessmentMin, lesson.assessmentMax)}</span></div></button>;
+function LessonCard({
+  lesson,
+  topics,
+  tone,
+  onOpen,
+  color,
+}: {
+  lesson: CourseLesson;
+  topics: CourseTopic[];
+  tone: TimeTone;
+  onOpen: () => void;
+  color: string;
+}) {
+  const Icon = lessonIcons[lesson.kind];
+  const meta = timeToneMeta[tone];
+  const linked = topics.filter((topic) => lesson.topicIds.includes(topic.id));
+
+  const nextStyle =
+    tone === "next"
+      ? {
+          borderColor: colorWithAlpha(color, 0.55),
+          backgroundColor: colorWithAlpha(color, 0.08),
+          boxShadow: `0 12px 38px ${colorWithAlpha(color, 0.17)}`,
+        }
+      : undefined;
+
+  return (
+    <button
+      onClick={onOpen}
+      className={cn(
+        "group flex min-h-36 flex-col rounded-[16px] border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-lg",
+        meta.className
+      )}
+      style={nextStyle}
+    >
+      <div className="flex items-center gap-2">
+        <span className="grid size-8 place-items-center rounded-[10px] border border-white/50 bg-background/55 shadow-[inset_0_1px_0_rgba(255,255,255,.8)] dark:border-white/8">
+          <Icon className="size-4" />
+        </span>
+
+        <span className="text-xs font-semibold text-muted-foreground">
+          {lessonKindLabels[lesson.kind]} · {lesson.number}
+        </span>
+
+        <span
+          className={cn("ml-auto size-2 rounded-full", meta.dot)}
+          style={
+            tone === "next"
+              ? {
+                  backgroundColor: color,
+                  boxShadow: `0 0 13px ${colorWithAlpha(color, 0.78)}`,
+                }
+              : undefined
+          }
+        />
+
+        <span className="text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+          {meta.label}
+        </span>
+      </div>
+
+      <h3 className="mt-3 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-.02em]">
+        {lesson.title || `${lessonKindLabels[lesson.kind]} ${lesson.number}`}
+      </h3>
+
+      <div className="mt-2 flex flex-wrap gap-1">
+        {linked.slice(0, 3).map((topic) => (
+          <span
+            key={topic.id}
+            className="max-w-full truncate rounded-full bg-background/65 px-2 py-0.5 text-[10px] text-muted-foreground"
+          >
+            {topic.title}
+          </span>
+        ))}
+        {linked.length > 3 ? (
+          <span className="rounded-full bg-background/65 px-2 py-0.5 text-[10px] text-muted-foreground">
+            +{linked.length - 3}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+        <span className="text-xs text-muted-foreground">
+          {lesson.date
+            ? format(new Date(lesson.date), "d MMMM", { locale: ru })
+            : "Дата не указана"}
+        </span>
+        <span className="rounded-lg bg-background/65 px-2 py-1 text-xs font-semibold">
+          {assessmentValueLabel(
+            lesson.assessmentFormat,
+            lesson.assessmentValue,
+            lesson.assessmentMin,
+            lesson.assessmentMax
+          )}
+        </span>
+      </div>
+    </button>
+  );
 }
 
 function Section({ value, title, icon: Icon, children, action, color }: { value: string; title: string; icon: typeof BookOpen; children: React.ReactNode; action?: React.ReactNode; color: string }) {
@@ -95,10 +199,116 @@ export function SubjectView({ subjectId }: { subjectId: string }) {
   const today = startOfDay(new Date()); const future = lessons.filter((lesson) => lesson.date && startOfDay(new Date(lesson.date)) > today).sort((a, b) => a.date!.localeCompare(b.date!)); const nextId = future[0]?.id;
   const tone = (lesson: CourseLesson): TimeTone => !lesson.date ? "undated" : isSameDay(new Date(lesson.date), today) ? "active" : startOfDay(new Date(lesson.date)) < today ? "past" : lesson.id === nextId ? "next" : "future";
   return <main className="mx-auto w-full max-w-[1280px] space-y-3.5 px-3 pb-28 pt-4 sm:px-5 lg:px-7 lg:pb-10"><Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Дисциплины</Link>
-    <Panel className="hse-subject-hero relative overflow-hidden"><div className="course-cover absolute inset-y-0 left-0 w-2 bg-[var(--course-color)]" style={{ "--course-color": subject.color } as React.CSSProperties} data-pattern={subject.pattern} /><div className="relative flex items-start gap-3 p-4 pl-6 sm:p-5 sm:pl-8"><span className="grid size-11 shrink-0 place-items-center rounded-[14px] border border-white/35 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.35),0_10px_30px_rgba(0,0,0,.16)]" style={{ backgroundColor: subject.color }}><SubjectIcon subject={subject} className="size-5" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><Badge variant="secondary">{status}</Badge><Badge variant="outline">{formatSubjectModules(subject)}</Badge><Badge variant="outline">{subject.credits} кр.</Badge><Badge variant="outline">{subject.language}</Badge></div><h1 className="mt-2 text-balance text-2xl font-semibold tracking-[-.045em] sm:text-[30px]">{subject.title}</h1>{subject.description ? <p className="mt-1.5 max-w-4xl text-sm leading-5 text-muted-foreground">{subject.description}</p> : null}</div><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setEditOpen(true)}><Pencil />Изменить</DropdownMenuItem>{subject.sourceUrl ? <DropdownMenuItem asChild><a href={subject.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink />Страница курса</a></DropdownMenuItem> : null}<DropdownMenuSeparator /><AlertDialog><AlertDialogTrigger asChild><DropdownMenuItem onSelect={(event) => event.preventDefault()} className="text-destructive"><Trash2 />Удалить</DropdownMenuItem></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить дисциплину?</AlertDialogTitle><AlertDialogDescription>Связанные занятия, темы, дедлайны, оценки и материалы также будут удалены.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Отмена</AlertDialogCancel><AlertDialogAction className="bg-destructive text-white" onClick={async () => { await removeSubject(subject.id); router.push("/"); }}>Удалить</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></DropdownMenuContent></DropdownMenu></div></Panel>
+    <Panel
+      className="hse-subject-hero relative overflow-hidden border-white/15 text-white"
+      style={{ backgroundColor: subject.color } as React.CSSProperties}
+    >
+      <div
+        className="course-cover pointer-events-none absolute inset-0 opacity-35"
+        style={{ "--course-color": subject.color } as React.CSSProperties}
+        data-pattern={subject.pattern}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,.20),transparent_42%,rgba(0,0,0,.12))]" />
+
+      <div className="relative flex items-start gap-3 p-4 sm:p-5">
+        <span className="grid size-11 shrink-0 place-items-center rounded-[14px] border border-white/30 bg-white/16 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.28),0_10px_30px_rgba(0,0,0,.14)] backdrop-blur-sm">
+          <SubjectIcon subject={subject} className="size-5 text-white" />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-white/24 bg-white/16 px-2.5 py-1 text-[11px] font-semibold leading-none text-white backdrop-blur-sm">
+              {status}
+            </span>
+            <span className="rounded-full border border-white/24 bg-white/16 px-2.5 py-1 text-[11px] font-semibold leading-none text-white backdrop-blur-sm">
+              {formatSubjectModules(subject)}
+            </span>
+            <span className="rounded-full border border-white/24 bg-white/16 px-2.5 py-1 text-[11px] font-semibold leading-none text-white backdrop-blur-sm">
+              {subject.credits} кр.
+            </span>
+            <span className="rounded-full border border-white/24 bg-white/16 px-2.5 py-1 text-[11px] font-semibold leading-none text-white backdrop-blur-sm">
+              {subject.language}
+            </span>
+          </div>
+
+          <h1 className="mt-2 text-balance text-2xl font-semibold tracking-[-.045em] text-white sm:text-[30px]">
+            {subject.title}
+          </h1>
+
+          {subject.description ? (
+            <p className="mt-1.5 max-w-4xl text-sm leading-5 text-white/76">
+              {subject.description}
+            </p>
+          ) : null}
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/15 hover:text-white"
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+              <Pencil />
+              Изменить
+            </DropdownMenuItem>
+            {subject.sourceUrl ? (
+              <DropdownMenuItem asChild>
+                <a
+                  href={subject.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink />
+                  Страница курса
+                </a>
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuSeparator />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem
+                  onSelect={(event) => event.preventDefault()}
+                  className="text-destructive"
+                >
+                  <Trash2 />
+                  Удалить
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Удалить дисциплину?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Связанные занятия, темы, дедлайны, оценки и материалы
+                    также будут удалены.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Отмена</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-white"
+                    onClick={async () => {
+                      await removeSubject(subject.id);
+                      router.push("/");
+                    }}
+                  >
+                    Удалить
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </Panel>
     <Panel className="px-4 py-3"><div className="flex flex-col gap-2 border-l-4 pl-3 sm:flex-row sm:items-center" style={{ borderLeftColor: subject.color }}><span className="shrink-0 text-xs font-semibold uppercase tracking-[.12em] text-muted-foreground">Формула</span><div className="min-w-0 flex-1"><FormulaLine subject={subject} /></div></div></Panel>
     <Accordion type="multiple" defaultValue={["lessons"]} className="space-y-2.5">
-      <Section color={subject.color} value="lessons" title="Занятия" icon={BookOpen} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedLesson(null); }}><Plus />Добавить</Button>}><div className="grid gap-2.5 p-3 sm:grid-cols-2 xl:grid-cols-3">{lessons.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} topics={topics} tone={tone(lesson)} onOpen={() => setSelectedLesson(lesson)} />)}{!lessons.length ? <p className="col-span-full rounded-[14px] border border-dashed px-3 py-5 text-sm text-muted-foreground">Добавьте первое занятие</p> : null}</div></Section>
+      <Section color={subject.color} value="lessons" title="Занятия" icon={BookOpen} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedLesson(null); }}><Plus />Добавить</Button>}><div className="grid gap-2.5 p-3 sm:grid-cols-2 xl:grid-cols-3">{lessons.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} topics={topics} tone={tone(lesson)} color={subject.color} onOpen={() => setSelectedLesson(lesson)} />)}{!lessons.length ? <p className="col-span-full rounded-[14px] border border-dashed px-3 py-5 text-sm text-muted-foreground">Добавьте первое занятие</p> : null}</div></Section>
       <Section color={subject.color} value="topics" title="Темы курса" icon={Layers3} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedTopic(null); }}><Plus />Добавить</Button>}><div className="grid gap-2.5 p-3 sm:grid-cols-2 xl:grid-cols-3">{topics.map((topic) => { const linked = lessons.filter((lesson) => lesson.topicIds.includes(topic.id)); return <button key={topic.id} onClick={() => setSelectedTopic(topic)} className="group flex min-h-28 flex-col rounded-[15px] border bg-background/38 p-3 text-left transition hover:-translate-y-0.5 hover:bg-background/65 hover:shadow-lg" style={{ borderColor: `${subject.color}45` }}><span className="text-[15px] font-semibold">{topic.title}</span>{topic.notes ? <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{topic.notes}</span> : null}<span className="mt-auto pt-3 text-[11px] text-muted-foreground">{linked.length ? linked.map((lesson) => `${lesson.number}. ${lessonKindLabels[lesson.kind]}`).join(" · ") : "Нет связанных занятий"}</span></button>; })}{!topics.length ? <p className="col-span-full rounded-[14px] border border-dashed px-3 py-5 text-sm text-muted-foreground">Добавьте темы и свяжите их с занятиями</p> : null}</div></Section>
       <Section color={subject.color} value="resources" title="Материалы и конспекты" icon={FileUp}><div className="grid gap-5 p-3 lg:grid-cols-2"><div><h3 className="mb-2 text-sm font-semibold">Файлы и ссылки</h3><MaterialsPanel subjectId={subject.id} onUpload={() => setUploadTarget({ scope: "subject" })} /></div><div><h3 className="mb-2 text-sm font-semibold">Конспекты</h3><NotesPanel subjectId={subject.id} /></div></div></Section>
       <Section color={subject.color} value="deadlines" title="Дедлайны" icon={CalendarDays} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setTaskOpen(true); }}><Plus />Добавить</Button>}><div>{tasks.map((task) => <TaskItem key={task.id} task={task} dense />)}{!tasks.length ? <p className="px-3 py-4 text-sm text-muted-foreground">Нет дедлайнов</p> : null}</div></Section>
