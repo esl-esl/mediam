@@ -70,7 +70,8 @@ export async function POST(request: Request) {
     }, { status: 201 });
   } catch (error) {
     console.error("File upload error", error);
-    return Response.json({ error: "Не удалось загрузить файл. Попробуйте ещё раз." }, { status: 503 });
+    const message = error instanceof Error ? error.message : "Unknown file upload error";
+    return Response.json({ error: message }, { status: 503 });
   }
 }
 
