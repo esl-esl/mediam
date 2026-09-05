@@ -163,18 +163,56 @@ export function lessonNumberLabel(lesson: CourseLesson) {
 }
 
 export function sortPlannerCollections(state: PlannerState): PlannerState {
+  const safe = <T,>(value: T[] | null | undefined): T[] => Array.isArray(value) ? value : [];
+
+  const subjects = safe(state.subjects).map((subject) => ({
+    ...subject,
+    modules: safe(subject.modules).length ? safe(subject.modules) : [subject.module],
+    objectives: safe(subject.objectives),
+  }));
+
+  const tasks = safe(state.tasks).map((task) => ({
+    ...task,
+    subtasks: safe(task.subtasks),
+  }));
+
+  const lessons = safe(state.lessons).map((lesson) => ({
+    ...lesson,
+    topicIds: safe(lesson.topicIds),
+  }));
+
+  const notes = safe(state.notes).map((note) => ({
+    ...note,
+    tags: safe(note.tags),
+    lessonIds: safe(note.lessonIds),
+    topicIds: safe(note.topicIds),
+  }));
+
+  const materials = safe(state.materials).map((material) => ({
+    ...material,
+    lessonIds: safe(material.lessonIds),
+    topicIds: safe(material.topicIds),
+  }));
+
+  const thesis = state.thesis ?? ({ title: "Магистерская диссертация", blocks: [] } as PlannerState["thesis"]);
+
   return {
     ...state,
-    subjects: [...state.subjects].sort(compareSubjectsByStudyOrder),
-    tasks: [...state.tasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.createdAt.localeCompare(b.createdAt)),
-    grades: [...state.grades].sort((a, b) => a.subjectId.localeCompare(b.subjectId) || a.title.localeCompare(b.title, "ru")),
-    topics: [...state.topics].sort((a, b) => a.subjectId.localeCompare(b.subjectId) || a.title.localeCompare(b.title, "ru")),
-    lessons: [...state.lessons].sort((a, b) => a.subjectId.localeCompare(b.subjectId) || compareLessonsChronologically(a, b)),
-    notes: [...state.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    schedule: [...state.schedule].sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
-    materials: [...state.materials].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    activities: [...state.activities].sort((a, b) => a.date.localeCompare(b.date)),
-    sessions: [...state.sessions].sort((a, b) => b.date.localeCompare(a.date)),
+    subjects: subjects.sort(compareSubjectsByStudyOrder),
+    tasks: tasks.sort((a, b) => String(a.dueDate ?? "").localeCompare(String(b.dueDate ?? "")) || String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? ""))),
+    grades: safe(state.grades).sort((a, b) => String(a.subjectId ?? "").localeCompare(String(b.subjectId ?? "")) || String(a.title ?? "").localeCompare(String(b.title ?? ""), "ru")),
+    topics: safe(state.topics).sort((a, b) => String(a.subjectId ?? "").localeCompare(String(b.subjectId ?? "")) || String(a.title ?? "").localeCompare(String(b.title ?? ""), "ru")),
+    lessons: lessons.sort((a, b) => String(a.subjectId ?? "").localeCompare(String(b.subjectId ?? "")) || compareLessonsChronologically(a, b)),
+    notes: notes.sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))),
+    schedule: safe(state.schedule).sort((a, b) => Number(a.weekday ?? 0) - Number(b.weekday ?? 0) || String(a.start ?? "").localeCompare(String(b.start ?? ""))),
+    materials: materials.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))),
+    activities: safe(state.activities).sort((a, b) => String(a.date ?? "").localeCompare(String(b.date ?? ""))),
+    sessions: safe(state.sessions).sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? ""))),
+    thesis: {
+      ...thesis,
+      blocks: safe(thesis.blocks),
+      chapters: safe(thesis.chapters),
+      milestones: safe(thesis.milestones),
+    },
   };
 }
-
