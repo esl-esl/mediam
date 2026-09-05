@@ -23,6 +23,7 @@ import { PlannerView } from "./views";
 import { cn } from "@/lib/utils";
 import { compareSubjectsByStudyOrder, formatSubjectModules, subjectModules } from "@/lib/planner-utils";
 import { academicCalendarState, currentAcademicCourse } from "@/lib/academic-calendar";
+import { useClientNow } from "@/lib/use-client-now";
 import { SubjectIcon } from "./subject-icon";
 import { MobileStartup } from "./mobile-startup";
 
@@ -41,6 +42,16 @@ const growthNav = [
   { href: "/thesis", label: "КР и ВКР", icon: GraduationCap },
   { href: "/activities", label: "Активности", icon: Sparkles },
 ];
+
+class PlannerErrorBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: unknown) { console.error("Study Space render failed", error); }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <main className="grid min-h-dvh place-items-center bg-white px-5 text-[#111827] dark:bg-[#111a2b] dark:text-white"><div className="w-full max-w-sm text-center"><div className="mx-auto grid size-14 place-items-center bg-[#0050CF] text-lg font-black text-white">ВШЭ</div><h1 className="mt-5 text-xl font-semibold">Не удалось открыть Study Space</h1><p className="mt-2 text-sm text-muted-foreground">Данные не удалены. Обновите страницу — приложение восстановит соединение.</p><button className="mt-5 h-11 w-full rounded-xl bg-[#0050CF] px-4 font-semibold text-white" onClick={() => window.location.reload()}>Обновить</button></div></main>;
+  }
+}
 
 function routeTitle(pathname: string, subjects: ReturnType<typeof usePlanner>["state"]["subjects"]) {
   if (pathname === "/") return "Главная";
@@ -69,7 +80,8 @@ function SyncIndicator() {
 function AppSidebar({ pathname }: { pathname: string }) {
   const { state } = usePlanner();
   const activeCourse = currentAcademicCourse();
-  const calendar = academicCalendarState(new Date(), activeCourse);
+  const now = useClientNow();
+  const calendar = academicCalendarState(now, activeCourse);
   const activeModule = calendar.current?.module ?? calendar.next?.module;
   const visibleSubjects = state.subjects
     .filter((subject) => subject.year === activeCourse && (!activeModule || subjectModules(subject).includes(activeModule)))
@@ -220,5 +232,5 @@ function Workspace({ initialRoute }: { initialRoute: string[] }) {
 }
 
 export function PlannerApp({ initialRoute }: { initialRoute: string[] }) {
-  return <PlannerProvider><MobileStartup /><Workspace initialRoute={initialRoute} /></PlannerProvider>;
+  return <PlannerErrorBoundary><PlannerProvider><MobileStartup /><Workspace initialRoute={initialRoute} /></PlannerProvider></PlannerErrorBoundary>;
 }
