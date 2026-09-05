@@ -178,7 +178,7 @@ export function createSeedState(base = new Date()): PlannerState {
   const topics = seedTopics(lessons);
   const managementLessons = lessons.filter((lesson) => lesson.subjectId === "media-management");
   if (managementLessons[1] && managementLessons[0]) managementLessons[1].topicIds.unshift(managementLessons[0].topicIds[0]);
-  if (managementLessons[2] && managementLessons[1]) managementLessons[2].topicIds.unshift(managementLessons[1].topicIds.at(-1)!);
+  if (managementLessons[2] && managementLessons[1]) managementLessons[2].topicIds.unshift(managementLessons[1].topicIds[managementLessons[1].topicIds.length - 1]);
   return {
     profile: {
       name: "Вероника",
