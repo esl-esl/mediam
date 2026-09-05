@@ -4,7 +4,7 @@ import * as React from "react";
 import { DashboardView } from "./views-dashboard";
 import { CoursesView } from "./views-courses";
 import { GradesView, MaterialsView } from "./views-grades-materials";
-import { ActivitiesView, DiplomaView, ResearchWorksView, SettingsView } from "./views-growth";
+import { ActivitiesView, DiplomaView, SettingsView, ThesisView } from "./views-growth";
 import { SubjectView } from "./views-subject";
 import { CalendarView, TasksView } from "./views-tasks-calendar";
 import { AnalyticsView } from "./views-analytics";
@@ -93,7 +93,7 @@ export function PlannerView({
     case "thesis":
     case "coursework":
     case "research":
-      view = <ResearchWorksView />;
+      view = <ThesisView />;
       break;
     case "activities":
       view = <ActivitiesView onAddActivity={onAddActivity} />;
