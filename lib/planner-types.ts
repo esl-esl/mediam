@@ -53,6 +53,7 @@ export interface Subject {
   targetGrade?: number;
   roundingRule: "math" | "hse07" | "none";
   pinned: boolean;
+  finalGrade?: number | null;
 }
 
 export interface Subtask {
@@ -142,7 +143,7 @@ export interface Material {
   label: string;
   kind: "file" | "link" | "textbook" | "recording" | "presentation" | "gradebook";
   storage: "upload" | "link";
-  scope?: "general" | "subject" | "topic" | "lesson" | "thesis";
+  scope?: "general" | "subject" | "topic" | "lesson" | "coursework" | "thesis";
   lessonId?: string | null;
   topicId?: string | null;
   lessonIds?: string[];
@@ -219,6 +220,7 @@ export interface PlannerState {
   notes: Note[];
   schedule: ScheduleEvent[];
   materials: Material[];
+  coursework: ThesisState;
   thesis: ThesisState;
   activities: Activity[];
   sessions: StudySession[];
