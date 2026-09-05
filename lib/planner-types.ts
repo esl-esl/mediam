@@ -154,6 +154,13 @@ export interface Material {
   createdAt: string;
 }
 
+export interface DiplomaGradeEntry {
+  id: string;
+  year: 1 | 2;
+  subjectTitle: string;
+  grade: number | null;
+}
+
 export interface ThesisChapter {
   id: string;
   title: string;
@@ -220,6 +227,7 @@ export interface PlannerState {
   notes: Note[];
   schedule: ScheduleEvent[];
   materials: Material[];
+  diplomaGrades: DiplomaGradeEntry[];
   coursework: ThesisState;
   thesis: ThesisState;
   activities: Activity[];
