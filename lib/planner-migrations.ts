@@ -47,6 +47,19 @@ function normalizeFinalGrade(value: unknown) {
   return Math.max(0, Math.min(10, numeric));
 }
 
+function normalizeLessonNumbers(value: unknown, fallback: number) {
+  const source = Array.isArray(value) ? value : [fallback];
+  const numbers = [
+    ...new Set(
+      source
+        .map(Number)
+        .filter((item) => Number.isInteger(item) && item > 0)
+    ),
+  ].sort((a, b) => a - b);
+
+  return numbers.length ? numbers : [Math.max(1, fallback || 1)];
+}
+
 function normalizeDiplomaGrades(value: unknown) {
   if (!Array.isArray(value)) return [];
 
@@ -257,11 +270,25 @@ export function normalizePlannerState(value: unknown): PlannerState {
       : "numeric";
 
     const kind = lesson.kind ?? "seminar";
-    const number = lesson.number ?? index + 1;
+    const number = Number(lesson.number) || index + 1;
+    const numbers = normalizeLessonNumbers(
+      (lesson as typeof lesson & { numbers?: unknown }).numbers,
+      number
+    );
+
+    // Older planner versions stored a separate lesson deadline.
+    // Lessons now have only their class date; deadlines live in StudyTask.
+    const {
+      deadline: _legacyLessonDeadline,
+      ...lessonWithoutLegacyDeadline
+    } = lesson as typeof lesson & { deadline?: unknown };
+
+    void _legacyLessonDeadline;
 
     return {
-      ...lesson,
-      number,
+      ...lessonWithoutLegacyDeadline,
+      number: numbers[0],
+      numbers,
       kind,
       title:
         lesson.title ??
