@@ -53,7 +53,6 @@ export interface Subject {
   targetGrade?: number;
   roundingRule: "math" | "hse07" | "none";
   pinned: boolean;
-  finalGrade?: number | null;
 }
 
 export interface Subtask {
@@ -79,11 +78,20 @@ export interface StudyTask {
 
 export interface GradeComponent extends AssessmentPart {
   subjectId: string;
+  gradeEntries?: GradeEntry[];
+  requiredCount?: number;
+  autoLessonKinds?: LessonKind[];
+  /** Legacy fields kept so existing saved planners migrate without data loss. */
   calculation?: "single" | "lesson_average";
   lessonKind?: LessonKind;
   scoreFormat?: AssessmentFormat;
   scoreText?: string;
   minScore?: number;
+}
+
+export interface GradeEntry {
+  id: string;
+  value: number;
 }
 
 export interface CourseTopic {
@@ -96,15 +104,14 @@ export interface CourseTopic {
 export interface CourseLesson {
   id: string;
   subjectId: string;
-  /** First lesson number, kept for backwards compatibility and sorting. */
   number: number;
-  /** One dated record may represent a double/multiple class, e.g. [1, 2]. */
-  numbers?: number[];
+  numberEnd?: number;
   kind: LessonKind;
   title?: string;
   topic?: string;
   topicIds: string[];
   date?: string;
+  deadline?: string;
   grade?: number | null;
   assessmentFormat: AssessmentFormat;
   assessmentValue: string;
@@ -118,6 +125,7 @@ export interface Note {
   subjectId: string | null;
   title: string;
   body: string;
+  bodyFormat?: "plain" | "html";
   format?: "text" | "link";
   url?: string;
   lessonIds?: string[];
@@ -150,17 +158,11 @@ export interface Material {
   topicId?: string | null;
   lessonIds?: string[];
   topicIds?: string[];
+  tags?: string[];
   mimeType?: string;
   size?: number;
   url?: string;
   createdAt: string;
-}
-
-export interface DiplomaGradeEntry {
-  id: string;
-  year: 1 | 2;
-  subjectTitle: string;
-  grade: number | null;
 }
 
 export interface ThesisChapter {
@@ -199,6 +201,14 @@ export interface ThesisState {
   milestones?: ThesisMilestone[];
 }
 
+export interface DiplomaGrade {
+  id: string;
+  year: 1 | 2;
+  module: 1 | 2 | 3 | 4;
+  subject: string;
+  grade: string;
+}
+
 export interface Activity {
   id: string;
   title: string;
@@ -229,9 +239,9 @@ export interface PlannerState {
   notes: Note[];
   schedule: ScheduleEvent[];
   materials: Material[];
-  diplomaGrades: DiplomaGradeEntry[];
   coursework: ThesisState;
   thesis: ThesisState;
+  diplomaGrades: DiplomaGrade[];
   activities: Activity[];
   sessions: StudySession[];
 }
