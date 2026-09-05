@@ -96,13 +96,15 @@ export interface CourseTopic {
 export interface CourseLesson {
   id: string;
   subjectId: string;
+  /** First lesson number, kept for backwards compatibility and sorting. */
   number: number;
+  /** One dated record may represent a double/multiple class, e.g. [1, 2]. */
+  numbers?: number[];
   kind: LessonKind;
   title?: string;
   topic?: string;
   topicIds: string[];
   date?: string;
-  deadline?: string;
   grade?: number | null;
   assessmentFormat: AssessmentFormat;
   assessmentValue: string;
