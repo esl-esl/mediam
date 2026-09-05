@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { DashboardView } from "./views-dashboard";
+import { CoursesView } from "./views-courses";
 import { GradesView, MaterialsView } from "./views-grades-materials";
 import { ActivitiesView, DiplomaView, ResearchWorksView, SettingsView } from "./views-growth";
 import { SubjectView } from "./views-subject";
@@ -71,6 +72,9 @@ export function PlannerView({
   let view: React.ReactNode;
 
   switch (section) {
+    case "courses":
+      view = <CoursesView onAddSubject={onAddSubject} />;
+      break;
     case "calendar":
       view = <CalendarView onAddTask={onAddTask} />;
       break;
