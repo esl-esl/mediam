@@ -81,6 +81,8 @@ export interface GradeComponent extends AssessmentPart {
   gradeEntries?: GradeEntry[];
   requiredCount?: number;
   autoLessonKinds?: LessonKind[];
+  /** Optional final value entered by the student instead of the calculated average. */
+  overrideScore?: number | null;
   /** Legacy fields kept so existing saved planners migrate without data loss. */
   calculation?: "single" | "lesson_average";
   lessonKind?: LessonKind;
@@ -92,6 +94,18 @@ export interface GradeComponent extends AssessmentPart {
 export interface GradeEntry {
   id: string;
   value: number;
+}
+
+export interface LessonAssessment {
+  id: string;
+  /** Formula element this criterion feeds; null means an independent lesson mark. */
+  criterionId?: string | null;
+  title: string;
+  format: Exclude<AssessmentFormat, "none">;
+  /** One criterion may contain several marks received during the same lesson. */
+  values: string[];
+  min?: number;
+  max?: number;
 }
 
 export interface CourseTopic {
@@ -117,6 +131,7 @@ export interface CourseLesson {
   assessmentValue: string;
   assessmentMin?: number;
   assessmentMax?: number;
+  assessments?: LessonAssessment[];
   notes: string;
 }
 
