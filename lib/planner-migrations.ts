@@ -47,6 +47,33 @@ function normalizeFinalGrade(value: unknown) {
   return Math.max(0, Math.min(10, numeric));
 }
 
+function normalizeDiplomaGrades(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => item && typeof item === "object")
+    .map((item, index) => {
+      const raw = item as {
+        id?: unknown;
+        year?: unknown;
+        subjectTitle?: unknown;
+        grade?: unknown;
+      };
+
+      const year = Number(raw.year) === 2 ? 2 : 1;
+
+      return {
+        id:
+          typeof raw.id === "string" && raw.id.trim()
+            ? raw.id
+            : `diploma-grade-${year}-${index + 1}`,
+        year: year as 1 | 2,
+        subjectTitle: String(raw.subjectTitle ?? ""),
+        grade: normalizeFinalGrade(raw.grade),
+      };
+    });
+}
+
 function normalizeWork(
   value: unknown,
   seed: ThesisState,
@@ -322,6 +349,7 @@ export function normalizePlannerState(value: unknown): PlannerState {
             : [],
       };
     }),
+    diplomaGrades: normalizeDiplomaGrades(raw.diplomaGrades),
     coursework,
     thesis,
     activities: Array.isArray(raw.activities) ? raw.activities : seed.activities,
