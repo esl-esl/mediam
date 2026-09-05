@@ -3,9 +3,9 @@ import { getDb } from "@/db";
 import { materials } from "@/db/schema";
 import { getUserId } from "@/lib/server-user";
 import {
-  downloadStorageObject,
-  removeStorageObjects,
-  uploadStorageObject,
+  deleteStoredFiles,
+  downloadStoredFile,
+  uploadStoredFile,
 } from "@/lib/supabase-storage";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const mimeType = candidate.type || "application/octet-stream";
     const storageKey = `${encodeURIComponent(userId)}/${id}/${name}`;
 
-    await uploadStorageObject(storageKey, candidate, mimeType);
+    await uploadStoredFile(storageKey, candidate, mimeType);
 
     const db = getDb();
     let row: typeof materials.$inferSelect;
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         .values({ id, userId, subjectId, lessonId, topicId, lessonIds: JSON.stringify(normalizedLessonIds), topicIds: JSON.stringify(normalizedTopicIds), scope, name, label, kind, mimeType, size: candidate.size, r2Key: storageKey })
         .returning();
     } catch (databaseError) {
-      await removeStorageObjects([storageKey]).catch((cleanupError) => {
+      await deleteStoredFiles([storageKey]).catch((cleanupError) => {
         console.error("Supabase upload rollback error", cleanupError);
       });
       throw databaseError;
@@ -151,8 +151,9 @@ export async function GET(request: Request) {
       .where(and(eq(materials.id, id), eq(materials.userId, userId)))
       .limit(1);
     if (!row) return Response.json({ error: "Файл не найден." }, { status: 404 });
-    const object = await downloadStorageObject(row.r2Key);
-    return new Response(object.stream(), {
+    const object = await downloadStoredFile(row.r2Key);
+    if (!object) return Response.json({ error: "Файл не найден в хранилище." }, { status: 404 });
+    return new Response(object.body, {
       headers: {
         "Content-Type": row.mimeType,
         "Content-Length": String(row.size),
@@ -178,7 +179,7 @@ export async function DELETE(request: Request) {
       .where(and(eq(materials.id, id), eq(materials.userId, userId)))
       .limit(1);
     if (!row) return Response.json({ error: "Файл не найден." }, { status: 404 });
-    await removeStorageObjects([row.r2Key]);
+    await deleteStoredFiles([row.r2Key]);
     await db.delete(materials).where(and(eq(materials.id, id), eq(materials.userId, userId)));
     return Response.json({ ok: true });
   } catch (error) {
