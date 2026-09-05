@@ -581,14 +581,14 @@ function LessonCard({
     <button
       onClick={onOpen}
       className={cn(
-        "group flex min-h-36 flex-col rounded-[16px] border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-lg",
+        "group flex flex-col rounded-[14px] border p-2.5 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
         meta.className
       )}
       style={nextStyle}
     >
       <div className="flex items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-[10px] border border-white/50 bg-background/55 shadow-[inset_0_1px_0_rgba(255,255,255,.8)] dark:border-white/8">
-          <Icon className="size-4" />
+        <span className="grid size-7 place-items-center rounded-[9px] border border-white/50 bg-background/55 shadow-[inset_0_1px_0_rgba(255,255,255,.8)] dark:border-white/8">
+          <Icon className="size-3.5" />
         </span>
 
         <span className="text-xs font-semibold text-muted-foreground">
@@ -612,11 +612,11 @@ function LessonCard({
         </span>
       </div>
 
-      <h3 className="mt-3 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-.02em]">
+      <h3 className="mt-2 line-clamp-2 text-[14px] font-semibold leading-[1.25] tracking-[-.015em]">
         {lesson.title || `${lessonKindLabels[lesson.kind]} ${lessonNumbersLabel(lesson)}`}
       </h3>
 
-      <div className="mt-2 flex flex-wrap gap-1">
+      <div className="mt-1.5 flex flex-wrap gap-1">
         {linked.slice(0, 3).map((topic) => (
           <span
             key={topic.id}
@@ -632,13 +632,13 @@ function LessonCard({
         ) : null}
       </div>
 
-      <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/35 pt-2">
         <span className="text-xs text-muted-foreground">
           {lesson.date
             ? format(new Date(lesson.date), "d MMMM", { locale: ru })
             : "Дата не указана"}
         </span>
-        <span className="rounded-lg bg-background/65 px-2 py-1 text-xs font-semibold">
+        <span className="rounded-md bg-background/65 px-1.5 py-0.5 text-[11px] font-semibold">
           {assessmentValueLabel(
             lesson.assessmentFormat,
             lesson.assessmentValue,
@@ -652,7 +652,7 @@ function LessonCard({
 }
 
 function Section({ value, title, icon: Icon, children, action, color }: { value: string; title: string; icon: typeof BookOpen; children: React.ReactNode; action?: React.ReactNode; color: string }) {
-  return <AccordionItem value={value} className="glass-panel overflow-hidden rounded-[18px]"><div className="flex min-h-12 items-center gap-1 px-3.5"><AccordionTrigger className="min-w-0 flex-1 items-center py-3 text-left text-[15px] font-semibold hover:no-underline"><span className="flex items-center gap-2.5"><span className="grid size-7 place-items-center rounded-[9px]" style={{ color, backgroundColor: `${color}18` }}><Icon className="size-4" /></span>{title}</span></AccordionTrigger>{action}</div><AccordionContent className="border-t border-border/50 p-0">{children}</AccordionContent></AccordionItem>;
+  return <AccordionItem value={value} className="glass-panel overflow-hidden rounded-[16px]"><div className="flex min-h-10 items-center gap-1 px-3"><AccordionTrigger className="min-w-0 flex-1 items-center py-2.5 text-left text-[14px] font-semibold hover:no-underline"><span className="flex items-center gap-2"><span className="grid size-6 place-items-center rounded-[8px]" style={{ color, backgroundColor: `${color}18` }}><Icon className="size-3.5" /></span>{title}</span></AccordionTrigger>{action}</div><AccordionContent className="border-t border-border/45 p-0">{children}</AccordionContent></AccordionItem>;
 }
 
 export function SubjectView({ subjectId }: { subjectId: string }) {
@@ -801,12 +801,12 @@ export function SubjectView({ subjectId }: { subjectId: string }) {
       </div>
     </section>
     <Panel className="px-4 py-3"><div className="flex flex-col gap-2 border-l-4 pl-3 sm:flex-row sm:items-center" style={{ borderLeftColor: subject.color }}><span className="shrink-0 text-xs font-semibold uppercase tracking-[.12em] text-muted-foreground">Формула</span><div className="min-w-0 flex-1"><FormulaLine subject={subject} /></div></div></Panel>
-    <Accordion type="multiple" defaultValue={["lessons"]} className="space-y-2.5">
-      <Section color={subject.color} value="lessons" title="Занятия" icon={BookOpen} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedLesson(null); }}><Plus />Добавить</Button>}><div className="grid gap-2.5 p-3 sm:grid-cols-2 xl:grid-cols-3">{lessons.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} topics={topics} tone={tone(lesson)} color={subject.color} onOpen={() => setSelectedLesson(lesson)} />)}{!lessons.length ? <p className="col-span-full rounded-[14px] border border-dashed px-3 py-5 text-sm text-muted-foreground">Добавьте первое занятие</p> : null}</div></Section>
-      <Section color={subject.color} value="topics" title="Темы курса" icon={Layers3} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedTopic(null); }}><Plus />Добавить</Button>}><div className="grid gap-2.5 p-3 sm:grid-cols-2 xl:grid-cols-3">{topics.map((topic) => { const linked = lessons.filter((lesson) => lesson.topicIds.includes(topic.id)); return <button key={topic.id} onClick={() => setSelectedTopic(topic)} className="group flex min-h-28 flex-col rounded-[15px] border bg-background/38 p-3 text-left transition hover:-translate-y-0.5 hover:bg-background/65 hover:shadow-lg" style={{ borderColor: `${subject.color}45` }}><span className="text-[15px] font-semibold">{topic.title}</span>{topic.notes ? <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{topic.notes}</span> : null}<span className="mt-auto pt-3 text-[11px] text-muted-foreground">{linked.length ? linked.map((lesson) => `${lessonNumbersLabel(lesson)}. ${lessonKindLabels[lesson.kind]}`).join(" · ") : "Нет связанных занятий"}</span></button>; })}{!topics.length ? <p className="col-span-full rounded-[14px] border border-dashed px-3 py-5 text-sm text-muted-foreground">Добавьте темы и свяжите их с занятиями</p> : null}</div></Section>
-      <Section color={subject.color} value="resources" title="Материалы и конспекты" icon={FileUp}><div className="grid gap-5 p-3 lg:grid-cols-2"><div><h3 className="mb-2 text-sm font-semibold">Файлы и ссылки</h3><MaterialsPanel subjectId={subject.id} onUpload={() => setUploadTarget({ scope: "subject" })} /></div><div><h3 className="mb-2 text-sm font-semibold">Конспекты</h3><NotesPanel subjectId={subject.id} /></div></div></Section>
-      <Section color={subject.color} value="deadlines" title="Дедлайны" icon={CalendarDays} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setTaskOpen(true); }}><Plus />Добавить</Button>}><div>{tasks.map((task) => <TaskItem key={task.id} task={task} dense />)}{!tasks.length ? <p className="px-3 py-4 text-sm text-muted-foreground">Нет дедлайнов</p> : null}</div></Section>
-      <Section color={subject.color} value="grades" title="Оценивание" icon={FileSpreadsheet}><div className="grid gap-5 p-3"><GradeEditor subject={subject} /><div><div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Ведомость</h3><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setLinkTarget({ scope: "subject", kind: "gradebook" })}><Link2 />Ссылка</Button><Button size="sm" variant="ghost" onClick={() => setUploadTarget({ scope: "subject", kind: "gradebook" })}><FileUp />Файл</Button></div></div>{gradebooks.length ? <div className="grid gap-2 md:grid-cols-2">{gradebooks.map((item) => <MaterialCard key={item.id} material={item} compact />)}</div> : <p className="rounded-[13px] border border-dashed px-3 py-3 text-sm text-muted-foreground">Ведомость не добавлена</p>}</div></div></Section>
+    <Accordion type="multiple" defaultValue={["lessons"]} className="space-y-2">
+      <Section color={subject.color} value="lessons" title="Занятия" icon={BookOpen} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedLesson(null); }}><Plus />Добавить</Button>}><div className="grid gap-2 p-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">{lessons.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} topics={topics} tone={tone(lesson)} color={subject.color} onOpen={() => setSelectedLesson(lesson)} />)}{!lessons.length ? <p className="col-span-full rounded-[14px] border border-dashed px-3 py-5 text-sm text-muted-foreground">Добавьте первое занятие</p> : null}</div></Section>
+      <Section color={subject.color} value="topics" title="Темы курса" icon={Layers3} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedTopic(null); }}><Plus />Добавить</Button>}><div className="grid gap-1.5 p-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{topics.map((topic) => { const linked = lessons.filter((lesson) => lesson.topicIds.includes(topic.id)); const linkedLabel = linked.length ? linked.slice(0, 2).map((lesson) => `${lessonNumbersLabel(lesson)}. ${lessonKindLabels[lesson.kind]}`).join(" · ") : "Нет связанных занятий"; return <button key={topic.id} onClick={() => setSelectedTopic(topic)} className="group min-w-0 rounded-[12px] border bg-background/38 px-2.5 py-2 text-left transition hover:-translate-y-0.5 hover:bg-background/65 hover:shadow-md" style={{ borderColor: `${subject.color}3D` }}><span className="block truncate text-[13px] font-semibold leading-5">{topic.title}</span>{topic.notes ? <span className="mt-0.5 block truncate text-[11px] leading-4 text-muted-foreground">{topic.notes}</span> : null}<span className="mt-1 block truncate text-[10px] leading-4 text-muted-foreground/85">{linkedLabel}{linked.length > 2 ? ` · +${linked.length - 2}` : ""}</span></button>; })}{!topics.length ? <p className="col-span-full rounded-[12px] border border-dashed px-3 py-3 text-sm text-muted-foreground">Добавьте темы и свяжите их с занятиями</p> : null}</div></Section>
+      <Section color={subject.color} value="resources" title="Материалы и конспекты" icon={FileUp}><div className="grid gap-3 p-2.5 lg:grid-cols-2"><div><h3 className="mb-2 text-sm font-semibold">Файлы и ссылки</h3><MaterialsPanel subjectId={subject.id} onUpload={() => setUploadTarget({ scope: "subject" })} /></div><div><h3 className="mb-2 text-sm font-semibold">Конспекты</h3><NotesPanel subjectId={subject.id} /></div></div></Section>
+      <Section color={subject.color} value="deadlines" title="Дедлайны" icon={CalendarDays} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setTaskOpen(true); }}><Plus />Добавить</Button>}><div>{tasks.map((task) => <TaskItem key={task.id} task={task} dense />)}{!tasks.length ? <p className="px-3 py-3 text-sm text-muted-foreground">Нет дедлайнов</p> : null}</div></Section>
+      <Section color={subject.color} value="grades" title="Оценивание" icon={FileSpreadsheet}><div className="grid gap-3 p-2.5"><GradeEditor subject={subject} /><div><div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Ведомость</h3><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setLinkTarget({ scope: "subject", kind: "gradebook" })}><Link2 />Ссылка</Button><Button size="sm" variant="ghost" onClick={() => setUploadTarget({ scope: "subject", kind: "gradebook" })}><FileUp />Файл</Button></div></div>{gradebooks.length ? <div className="grid gap-2 md:grid-cols-2">{gradebooks.map((item) => <MaterialCard key={item.id} material={item} compact />)}</div> : <p className="rounded-[13px] border border-dashed px-3 py-3 text-sm text-muted-foreground">Ведомость не добавлена</p>}</div></div></Section>
     </Accordion>
     <SubjectDialog open={editOpen} onOpenChange={setEditOpen} subject={subject} /><TaskDialog open={taskOpen} onOpenChange={setTaskOpen} defaultSubjectId={subject.id} /><LessonEditorDialog open={selectedLesson !== undefined} onOpenChange={(value) => { if (!value) setSelectedLesson(undefined); }} subjectId={subject.id} lesson={selectedLesson} nextNumber={
       Math.max(
