@@ -133,3 +133,48 @@ export function formatFileSize(bytes?: number) {
 export function uid(prefix = "item") {
   return `${prefix}-${crypto.randomUUID()}`;
 }
+
+const subjectStatusOrder: Record<Subject["status"], number> = {
+  required: 0,
+  elective: 1,
+  magolego: 2,
+};
+
+export function compareSubjectsByStudyOrder(a: Subject, b: Subject) {
+  const aModule = subjectModules(a)[0] ?? a.module ?? 99;
+  const bModule = subjectModules(b)[0] ?? b.module ?? 99;
+  return (
+    a.year - b.year ||
+    aModule - bModule ||
+    Number(b.pinned) - Number(a.pinned) ||
+    subjectStatusOrder[a.status] - subjectStatusOrder[b.status] ||
+    a.shortTitle.localeCompare(b.shortTitle, "ru")
+  );
+}
+
+export function compareLessonsChronologically(a: CourseLesson, b: CourseLesson) {
+  const aDate = a.date ?? "9999-12-31T23:59:59";
+  const bDate = b.date ?? "9999-12-31T23:59:59";
+  return aDate.localeCompare(bDate) || a.number - b.number || a.kind.localeCompare(b.kind);
+}
+
+export function lessonNumberLabel(lesson: CourseLesson) {
+  return String(lesson.number);
+}
+
+export function sortPlannerCollections(state: PlannerState): PlannerState {
+  return {
+    ...state,
+    subjects: [...state.subjects].sort(compareSubjectsByStudyOrder),
+    tasks: [...state.tasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.createdAt.localeCompare(b.createdAt)),
+    grades: [...state.grades].sort((a, b) => a.subjectId.localeCompare(b.subjectId) || a.title.localeCompare(b.title, "ru")),
+    topics: [...state.topics].sort((a, b) => a.subjectId.localeCompare(b.subjectId) || a.title.localeCompare(b.title, "ru")),
+    lessons: [...state.lessons].sort((a, b) => a.subjectId.localeCompare(b.subjectId) || compareLessonsChronologically(a, b)),
+    notes: [...state.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    schedule: [...state.schedule].sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
+    materials: [...state.materials].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    activities: [...state.activities].sort((a, b) => a.date.localeCompare(b.date)),
+    sessions: [...state.sessions].sort((a, b) => b.date.localeCompare(a.date)),
+  };
+}
+
