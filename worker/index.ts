@@ -45,3 +45,14 @@ const worker = {
 };
 
 export default worker;
+          const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
+          return result.response();
+        },
+      }, allowedWidths);
+    }
+
+    return handler.fetch(request, env, ctx);
+  },
+};
+
+export default worker;
