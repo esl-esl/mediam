@@ -39,8 +39,18 @@ export const assessmentFormatLabels: Record<AssessmentFormat, string> = {
 };
 
 export function subjectModules(subject: Subject) {
-  const modules = subject.modules?.length ? subject.modules : [subject.module];
-  return [...new Set(modules.filter((item) => item >= 1 && item <= 4))].sort();
+  const modules =
+    Array.isArray(subject.modules) && subject.modules.length
+      ? subject.modules
+      : [subject.module];
+
+  return [
+    ...new Set(
+      modules
+        .map((item) => Number(item))
+        .filter((item) => Number.isFinite(item) && item >= 1 && item <= 4)
+    ),
+  ].sort((a, b) => a - b);
 }
 
 export function formatSubjectModules(subject: Subject) {
@@ -50,10 +60,18 @@ export function formatSubjectModules(subject: Subject) {
   return modules.map((module) => `М${module}`).join(", ");
 }
 
-export function assessmentValueLabel(format: AssessmentFormat, value: string, min = 0, max = 10) {
-  if (format === "none" || !value.trim()) return "—";
-  if (format === "numeric") return `${value} / ${max}${min ? ` (от ${min})` : ""}`;
-  return value;
+export function assessmentValueLabel(
+  format: AssessmentFormat,
+  value: string,
+  min = 0,
+  max = 10
+) {
+  const safeValue = String(value ?? "");
+  if (format === "none" || !safeValue.trim()) return "—";
+  if (format === "numeric") {
+    return `${safeValue} / ${max}${min ? ` (от ${min})` : ""}`;
+  }
+  return safeValue;
 }
 
 function normalizedNumericScore(value: number, min: number, max: number) {
@@ -67,7 +85,13 @@ export function gradeComponentScore(part: GradeComponent, lessons: CourseLesson[
     return normalizedNumericScore(part.score, part.minScore ?? 0, part.maxScore);
   }
   const scores = lessons
-    .filter((lesson) => lesson.subjectId === part.subjectId && (!part.lessonKind || lesson.kind === part.lessonKind) && lesson.assessmentFormat === "numeric" && lesson.assessmentValue.trim())
+    .filter(
+      (lesson) =>
+        lesson.subjectId === part.subjectId &&
+        (!part.lessonKind || lesson.kind === part.lessonKind) &&
+        lesson.assessmentFormat === "numeric" &&
+        String(lesson.assessmentValue ?? "").trim()
+    )
     .map((lesson) => normalizedNumericScore(Number(lesson.assessmentValue), lesson.assessmentMin ?? 0, lesson.assessmentMax ?? 10))
     .filter((score): score is number => score !== null);
   return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
@@ -143,19 +167,29 @@ const subjectStatusOrder: Record<Subject["status"], number> = {
 export function compareSubjectsByStudyOrder(a: Subject, b: Subject) {
   const aModule = subjectModules(a)[0] ?? a.module ?? 99;
   const bModule = subjectModules(b)[0] ?? b.module ?? 99;
+
   return (
-    a.year - b.year ||
+    Number(a.year ?? 99) - Number(b.year ?? 99) ||
     aModule - bModule ||
-    Number(b.pinned) - Number(a.pinned) ||
-    subjectStatusOrder[a.status] - subjectStatusOrder[b.status] ||
-    a.shortTitle.localeCompare(b.shortTitle, "ru")
+    Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) ||
+    Number(subjectStatusOrder[a.status] ?? 99) -
+      Number(subjectStatusOrder[b.status] ?? 99) ||
+    String(a.shortTitle ?? a.title ?? "").localeCompare(
+      String(b.shortTitle ?? b.title ?? ""),
+      "ru"
+    )
   );
 }
 
 export function compareLessonsChronologically(a: CourseLesson, b: CourseLesson) {
-  const aDate = a.date ?? "9999-12-31T23:59:59";
-  const bDate = b.date ?? "9999-12-31T23:59:59";
-  return aDate.localeCompare(bDate) || a.number - b.number || a.kind.localeCompare(b.kind);
+  const aDate = String(a.date ?? "9999-12-31T23:59:59");
+  const bDate = String(b.date ?? "9999-12-31T23:59:59");
+
+  return (
+    aDate.localeCompare(bDate) ||
+    Number(a.number ?? 0) - Number(b.number ?? 0) ||
+    String(a.kind ?? "").localeCompare(String(b.kind ?? ""))
+  );
 }
 
 export function lessonNumberLabel(lesson: CourseLesson) {
