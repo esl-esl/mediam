@@ -64,6 +64,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type {
   Activity,
+  DiplomaGradeEntry,
   Material,
   PlannerState,
   Subject,
@@ -95,157 +96,174 @@ function subjectStatusLabel(subject: Subject) {
 
 export function DiplomaView() {
   const { state, mutate } = usePlanner();
-  const subjects = Array.isArray(state.subjects) ? state.subjects : [];
-  const years = [...new Set(subjects.map((subject) => subject.year))]
-    .filter((year) => Number.isFinite(year))
-    .sort((a, b) => a - b);
+  const entries = Array.isArray(state.diplomaGrades)
+    ? state.diplomaGrades
+    : [];
+
+  const addEntry = (year: 1 | 2) => {
+    mutate((draft) => {
+      if (!Array.isArray(draft.diplomaGrades)) {
+        draft.diplomaGrades = [];
+      }
+
+      draft.diplomaGrades.push({
+        id: uid(`diploma-grade-${year}`),
+        year,
+        subjectTitle: "",
+        grade: null,
+      });
+    });
+  };
+
+  const updateEntry = (
+    id: string,
+    patch: Partial<Pick<DiplomaGradeEntry, "subjectTitle" | "grade">>
+  ) => {
+    mutate((draft) => {
+      const entry = draft.diplomaGrades.find(
+        (item) => item.id === id
+      );
+      if (!entry) return;
+      Object.assign(entry, patch);
+    });
+  };
+
+  const removeEntry = (id: string) => {
+    mutate((draft) => {
+      draft.diplomaGrades = draft.diplomaGrades.filter(
+        (item) => item.id !== id
+      );
+    });
+  };
 
   return (
-    <main className="mx-auto w-full max-w-[1120px] space-y-5 px-3 pb-28 pt-4 sm:px-5 lg:px-7 lg:pb-10">
+    <main className="mx-auto w-full max-w-[980px] space-y-6 px-3 pb-28 pt-4 sm:px-5 lg:px-7 lg:pb-10">
       <PageHeading title="Диплом" />
 
       <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-        Итоговые оценки вводятся вручную и не зависят от формул
-        оценивания внутри дисциплин.
+        Здесь хранятся итоговые оценки для диплома. Названия
+        дисциплин и оценки вводятся вручную и не связаны с
+        предметами или формулами оценивания в планере.
       </p>
 
-      {years.map((year) => (
-        <section key={year} className="space-y-2.5">
-          <div className="flex items-end justify-between gap-3 px-1">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[.13em] text-muted-foreground">
-                Учебный год
-              </p>
-              <h2 className="mt-0.5 text-xl font-semibold">
+      {[1, 2].map((yearValue) => {
+        const year = yearValue as 1 | 2;
+        const yearEntries = entries.filter(
+          (item) => item.year === year
+        );
+
+        return (
+          <section key={year} className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold tracking-[-.03em]">
                 {year} курс
               </h2>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => addEntry(year)}
+              >
+                <Plus />
+                Добавить дисциплину
+              </Button>
             </div>
-          </div>
 
-          <Panel className="overflow-hidden">
-            {[1, 2, 3, 4].map((module) => {
-              const moduleSubjects = subjects.filter(
-                (subject) =>
-                  subject.year === year &&
-                  Number(subject.module) === module
-              );
-
-              return (
-                <div
-                  key={module}
-                  className="border-b border-border/55 last:border-b-0"
-                >
-                  <div className="flex items-center gap-3 bg-muted/20 px-4 py-3">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-foreground text-xs font-bold text-background">
-                      М{module}
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-semibold">
-                        Модуль {module}
-                      </h3>
-                      <p className="text-[11px] text-muted-foreground">
-                        Итоговые оценки по дисциплинам
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="divide-y divide-border/45">
-                    {moduleSubjects.map((subject) => (
-                      <div
-                        key={subject.id}
-                        className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_130px] sm:items-center"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span
-                            className="grid size-10 shrink-0 place-items-center rounded-[12px] text-white shadow-sm"
-                            style={{ backgroundColor: subject.color }}
-                          >
-                            <SubjectIcon
-                              subject={subject}
-                              className="size-4.5"
-                            />
-                          </span>
-
-                          <div className="min-w-0">
-                            <Link
-                              href={`/subjects/${subject.id}`}
-                              className="block truncate text-sm font-semibold hover:underline"
-                            >
-                              {subject.title}
-                            </Link>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              {subjectStatusLabel(subject)} ·{" "}
-                              {subject.credits} кр. ·{" "}
-                              {formatSubjectModules(subject)}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 sm:justify-end">
-                          <Label
-                            htmlFor={`final-grade-${subject.id}`}
-                            className="whitespace-nowrap text-xs text-muted-foreground"
-                          >
-                            Итог
-                          </Label>
-                          <Input
-                            id={`final-grade-${subject.id}`}
-                            type="number"
-                            min={0}
-                            max={10}
-                            step="0.1"
-                            value={subject.finalGrade ?? ""}
-                            placeholder="—"
-                            className="h-9 w-20 text-center font-semibold"
-                            style={{
-                              borderColor: `${subject.color}66`,
-                              boxShadow: `inset 3px 0 0 ${subject.color}`,
-                            }}
-                            onChange={(event) =>
-                              mutate((draft) => {
-                                const current = draft.subjects.find(
-                                  (item) => item.id === subject.id
-                                );
-                                if (!current) return;
-
-                                if (event.target.value === "") {
-                                  current.finalGrade = null;
-                                  return;
-                                }
-
-                                current.finalGrade = Math.max(
-                                  0,
-                                  Math.min(
-                                    10,
-                                    Number(event.target.value)
-                                  )
-                                );
-                              })
-                            }
-                          />
-                        </div>
+            <Panel className="overflow-hidden">
+              {yearEntries.length ? (
+                <div className="divide-y divide-border/55">
+                  {yearEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_110px_36px] sm:items-center"
+                    >
+                      <div className="min-w-0">
+                        <Label
+                          htmlFor={`diploma-subject-${entry.id}`}
+                          className="sr-only"
+                        >
+                          Название дисциплины
+                        </Label>
+                        <Input
+                          id={`diploma-subject-${entry.id}`}
+                          value={entry.subjectTitle}
+                          placeholder="Название дисциплины"
+                          className="h-9"
+                          onChange={(event) =>
+                            updateEntry(entry.id, {
+                              subjectTitle: event.target.value,
+                            })
+                          }
+                        />
                       </div>
-                    ))}
 
-                    {!moduleSubjects.length ? (
-                      <p className="px-4 py-4 text-sm text-muted-foreground">
-                        В этом модуле пока нет дисциплин.
-                      </p>
-                    ) : null}
-                  </div>
+                      <div className="flex items-center gap-2">
+                        <Label
+                          htmlFor={`diploma-grade-${entry.id}`}
+                          className="shrink-0 text-xs text-muted-foreground"
+                        >
+                          Оценка
+                        </Label>
+                        <Input
+                          id={`diploma-grade-${entry.id}`}
+                          type="number"
+                          min={0}
+                          max={10}
+                          step="0.1"
+                          value={entry.grade ?? ""}
+                          placeholder="—"
+                          className="h-9 w-20 text-center font-semibold"
+                          onChange={(event) => {
+                            if (event.target.value === "") {
+                              updateEntry(entry.id, { grade: null });
+                              return;
+                            }
+
+                            const numeric = Number(event.target.value);
+                            updateEntry(entry.id, {
+                              grade: Number.isFinite(numeric)
+                                ? Math.max(0, Math.min(10, numeric))
+                                : null,
+                            });
+                          }}
+                        />
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-9 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeEntry(entry.id)}
+                        aria-label="Удалить дисциплину"
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </Panel>
-        </section>
-      ))}
-
-      {!years.length ? (
-        <Panel className="p-6 text-sm text-muted-foreground">
-          Добавьте дисциплины — они появятся здесь по курсам и
-          модулям.
-        </Panel>
-      ) : null}
+              ) : (
+                <div className="px-4 py-7 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Пока нет дисциплин.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => addEntry(year)}
+                  >
+                    <Plus />
+                    Добавить первую
+                  </Button>
+                </div>
+              )}
+            </Panel>
+          </section>
+        );
+      })}
     </main>
   );
 }
