@@ -6,6 +6,7 @@ import { createSeedState } from "@/lib/planner-seed";
 import { normalizePlannerState } from "@/lib/planner-migrations";
 import { sortPlannerCollections } from "@/lib/planner-utils";
 import type { Material, PlannerState } from "@/lib/planner-types";
+import { ensurePlannerState } from "@/lib/planner-safe-state";
 
 type SyncStatus = "loading" | "saved" | "saving" | "offline" | "error";
 
