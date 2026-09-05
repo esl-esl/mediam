@@ -5,6 +5,19 @@ function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
+function safeLessonNumbers(value: unknown, fallback: number): number[] {
+  const source = Array.isArray(value) ? value : [fallback];
+  const numbers = [
+    ...new Set(
+      source
+        .map(Number)
+        .filter((item) => Number.isInteger(item) && item > 0)
+    ),
+  ].sort((a, b) => a - b);
+
+  return numbers.length ? numbers : [Math.max(1, fallback || 1)];
+}
+
 function safeDiplomaGrades(
   value: DiplomaGradeEntry[] | null | undefined
 ): DiplomaGradeEntry[] {
@@ -81,16 +94,32 @@ export function ensurePlannerState(
     })),
     grades: safeArray(raw.grades),
     topics: safeArray(raw.topics),
-    lessons: safeArray(raw.lessons).map((lesson) => ({
-      ...lesson,
-      kind: lesson.kind ?? "seminar",
-      topicIds: safeArray(lesson.topicIds),
-      assessmentFormat: lesson.assessmentFormat ?? "numeric",
-      assessmentValue: String(lesson.assessmentValue ?? ""),
-      assessmentMin: lesson.assessmentMin ?? 0,
-      assessmentMax: lesson.assessmentMax ?? 10,
-      notes: lesson.notes ?? "",
-    })),
+    lessons: safeArray(raw.lessons).map((lesson, index) => {
+      const fallbackNumber = Number(lesson.number) || index + 1;
+      const numbers = safeLessonNumbers(
+        (lesson as typeof lesson & { numbers?: unknown }).numbers,
+        fallbackNumber
+      );
+      const {
+        deadline: _legacyLessonDeadline,
+        ...lessonWithoutLegacyDeadline
+      } = lesson as typeof lesson & { deadline?: unknown };
+
+      void _legacyLessonDeadline;
+
+      return {
+        ...lessonWithoutLegacyDeadline,
+        number: numbers[0],
+        numbers,
+        kind: lesson.kind ?? "seminar",
+        topicIds: safeArray(lesson.topicIds),
+        assessmentFormat: lesson.assessmentFormat ?? "numeric",
+        assessmentValue: String(lesson.assessmentValue ?? ""),
+        assessmentMin: lesson.assessmentMin ?? 0,
+        assessmentMax: lesson.assessmentMax ?? 10,
+        notes: lesson.notes ?? "",
+      };
+    }),
     notes: safeArray(raw.notes).map((note) => ({
       ...note,
       tags: safeArray(note.tags),
