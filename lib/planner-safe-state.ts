@@ -1,7 +1,7 @@
-import type { PlannerState } from "./planner-types";
 import { createSeedState } from "./planner-seed";
+import type { PlannerState } from "./planner-types";
 
-function array<T>(value: T[] | null | undefined): T[] {
+function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
@@ -22,27 +22,27 @@ export function ensurePlannerState(
       ...(raw.profile ?? {}),
     },
 
-    subjects: array(raw.subjects).map((subject) => ({
+    subjects: safeArray(raw.subjects).map((subject) => ({
       ...subject,
       modules:
         Array.isArray(subject.modules) && subject.modules.length
           ? subject.modules
-          : [subject.module],
-      objectives: array(subject.objectives),
+          : [subject.module ?? 1],
+      objectives: safeArray(subject.objectives),
     })),
 
-    tasks: array(raw.tasks).map((task) => ({
+    tasks: safeArray(raw.tasks).map((task) => ({
       ...task,
-      subtasks: array(task.subtasks),
+      subtasks: safeArray(task.subtasks),
     })),
 
-    grades: array(raw.grades),
+    grades: safeArray(raw.grades),
 
-    topics: array(raw.topics),
+    topics: safeArray(raw.topics),
 
-    lessons: array(raw.lessons).map((lesson) => ({
+    lessons: safeArray(raw.lessons).map((lesson) => ({
       ...lesson,
-      topicIds: array(lesson.topicIds),
+      topicIds: safeArray(lesson.topicIds),
       assessmentFormat: lesson.assessmentFormat ?? "numeric",
       assessmentValue: String(lesson.assessmentValue ?? ""),
       assessmentMin: lesson.assessmentMin ?? 0,
@@ -50,33 +50,33 @@ export function ensurePlannerState(
       notes: lesson.notes ?? "",
     })),
 
-    notes: array(raw.notes).map((note) => ({
+    notes: safeArray(raw.notes).map((note) => ({
       ...note,
-      tags: array(note.tags),
-      lessonIds: array(note.lessonIds),
-      topicIds: array(note.topicIds),
+      tags: safeArray(note.tags),
+      lessonIds: safeArray(note.lessonIds),
+      topicIds: safeArray(note.topicIds),
       body: note.body ?? "",
     })),
 
-    schedule: array(raw.schedule),
+    schedule: safeArray(raw.schedule),
 
-    materials: array(raw.materials).map((material) => ({
+    materials: safeArray(raw.materials).map((material) => ({
       ...material,
-      lessonIds: array(material.lessonIds),
-      topicIds: array(material.topicIds),
+      lessonIds: safeArray(material.lessonIds),
+      topicIds: safeArray(material.topicIds),
     })),
 
     thesis: {
       ...seed.thesis,
       ...thesis,
       title: thesis?.title ?? "Магистерская диссертация",
-      blocks: array(thesis?.blocks),
-      chapters: array(thesis?.chapters),
-      milestones: array(thesis?.milestones),
+      blocks: safeArray(thesis?.blocks),
+      chapters: safeArray(thesis?.chapters),
+      milestones: safeArray(thesis?.milestones),
     },
 
-    activities: array(raw.activities),
+    activities: safeArray(raw.activities),
 
-    sessions: array(raw.sessions),
+    sessions: safeArray(raw.sessions),
   };
 }
