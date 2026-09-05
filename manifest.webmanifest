@@ -1,0 +1,13 @@
+{
+  "name": "HSE Study Space",
+  "short_name": "Study Space",
+  "description": "Учебный планер HSE Study Space",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0050cf",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "/study-space-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
