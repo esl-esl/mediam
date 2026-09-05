@@ -1,8 +1,26 @@
 import { createSeedState } from "./planner-seed";
-import type { PlannerState, ThesisState } from "./planner-types";
+import type { DiplomaGradeEntry, PlannerState, ThesisState } from "./planner-types";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
+}
+
+function safeDiplomaGrades(
+  value: DiplomaGradeEntry[] | null | undefined
+): DiplomaGradeEntry[] {
+  return safeArray(value).map((item, index) => {
+    const year = Number(item.year) === 2 ? 2 : 1;
+
+    return {
+      id: item.id || `diploma-grade-${year}-${index + 1}`,
+      year: year as 1 | 2,
+      subjectTitle: String(item.subjectTitle ?? ""),
+      grade:
+        item.grade === null || item.grade === undefined
+          ? null
+          : Math.max(0, Math.min(10, Number(item.grade))),
+    };
+  });
 }
 
 function safeWork(
@@ -86,6 +104,7 @@ export function ensurePlannerState(
       lessonIds: safeArray(material.lessonIds),
       topicIds: safeArray(material.topicIds),
     })),
+    diplomaGrades: safeDiplomaGrades(raw.diplomaGrades),
     coursework: safeWork(raw.coursework, seed.coursework),
     thesis: safeWork(raw.thesis, seed.thesis),
     activities: safeArray(raw.activities),
