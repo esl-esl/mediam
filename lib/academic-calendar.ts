@@ -10,14 +10,7 @@ export interface AcademicPeriod {
   end: string;
 }
 
-export interface AcademicYearDefinition {
-  course: 1 | 2;
-  label: string;
-  academicYear: string;
-  periods: AcademicPeriod[];
-}
-
-// Границы 2026/27 используются как базовая модульная сетка планера.
+// Типовой график НИУ ВШЭ на 2026/27 учебный год по приказу университета.
 export const academicPeriods2026: AcademicPeriod[] = [
   { id: "m1", title: "1 модуль · учебный период", shortTitle: "1 модуль", type: "study", module: 1, start: "2026-09-01", end: "2026-10-25" },
   { id: "s1", title: "Сессия после 1 модуля", shortTitle: "Сессия", type: "session", module: 1, start: "2026-10-26", end: "2026-10-31" },
@@ -32,71 +25,29 @@ export const academicPeriods2026: AcademicPeriod[] = [
   { id: "summer", title: "Летние каникулы", shortTitle: "Каникулы", type: "break", start: "2027-07-01", end: "2027-08-31" },
 ];
 
-function shiftIsoYear(value: string, offset: number) {
-  const [year, month, day] = value.split("-").map(Number);
-  return `${year + offset}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+function startOfDate(value: string) {
+  return new Date(`${value}T00:00:00`);
 }
 
-function shiftedPeriods(offset: number): AcademicPeriod[] {
-  return academicPeriods2026.map((period) => ({
-    ...period,
-    id: `${period.id}-y${offset + 1}`,
-    start: shiftIsoYear(period.start, offset),
-    end: shiftIsoYear(period.end, offset),
-  }));
+function endOfDate(value: string) {
+  return new Date(`${value}T23:59:59`);
 }
 
-export const academicYears: AcademicYearDefinition[] = [
-  { course: 1, label: "1 курс", academicYear: "2026/2027", periods: academicPeriods2026 },
-  { course: 2, label: "2 курс", academicYear: "2027/2028", periods: shiftedPeriods(1) },
-];
-
-const DAY_MS = 86_400_000;
-
-function hseDateKey(now: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Moscow",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}`;
-}
-
-function dayNumber(value: string) {
-  return Date.parse(`${value}T00:00:00Z`) / DAY_MS;
-}
-
-export function academicYearForCourse(course: number) {
-  return academicYears.find((item) => item.course === course) ?? academicYears[0];
-}
-
-export function currentAcademicCourse(now = new Date()): 1 | 2 {
-  const today = hseDateKey(now);
-  const active = academicYears.find((year) => year.periods.some((period) => today >= period.start && today <= period.end));
-  if (active) return active.course;
-  const next = academicYears.find((year) => year.periods.some((period) => period.start > today));
-  return next?.course ?? 2;
-}
-
-export function academicCalendarState(now = new Date(), course: number = currentAcademicCourse(now)) {
-  const year = academicYearForCourse(course);
-  const periods = year.periods;
-  const today = hseDateKey(now);
-  const current = [...periods]
-    .sort((a, b) => Number(b.type === "break") - Number(a.type === "break"))
-    .find((period) => today >= period.start && today <= period.end);
-  const chronological = periods
-    .filter((period) => !period.id.startsWith("spring"))
+export function academicCalendarState(now = new Date()) {
+  // Весенние каникулы перекрывают 4 модуль, поэтому проверяем короткие перерывы первыми.
+  const current = [...academicPeriods2026]
+    .sort((a, b) => (a.type === "break" ? -1 : 0) - (b.type === "break" ? -1 : 0))
+    .find((period) => now >= startOfDate(period.start) && now <= endOfDate(period.end));
+  const chronological = academicPeriods2026
+    .filter((period) => period.id !== "spring")
     .sort((a, b) => a.start.localeCompare(b.start));
-  const next = chronological.find((period) => period.start > today);
+  const next = chronological.find((period) => startOfDate(period.start) > now);
   const period = current ?? next ?? chronological.at(-1)!;
-  const start = dayNumber(period.start);
-  const end = dayNumber(period.end);
-  const progress = current ? Math.max(0, Math.min(100, ((dayNumber(today) - start) / Math.max(1, end - start + 1)) * 100)) : 0;
-  const nextPeriod = current?.id.startsWith("spring")
-    ? { ...periods.find((item) => item.id.startsWith("m4"))!, id: `m4-resume-y${year.course}`, title: "4 модуль · продолжение учебного периода", start: shiftIsoYear("2027-05-09", year.course - 1) }
-    : current ? chronological.find((item) => item.start > current.end) ?? null : next ?? null;
-  return { current: current ?? null, next: nextPeriod, period, progress, year };
+  const start = startOfDate(period.start).getTime();
+  const end = endOfDate(period.end).getTime();
+  const progress = current ? Math.max(0, Math.min(100, ((now.getTime() - start) / Math.max(1, end - start)) * 100)) : 0;
+  const nextPeriod = current?.id === "spring"
+    ? { ...academicPeriods2026.find((item) => item.id === "m4")!, id: "m4-resume", title: "4 модуль · продолжение учебного периода", start: "2027-05-09" }
+    : current ? chronological.find((item) => startOfDate(item.start) > endOfDate(current.end)) ?? null : next ?? null;
+  return { current: current ?? null, next: nextPeriod, period, progress };
 }

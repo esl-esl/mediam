@@ -96,7 +96,6 @@ export interface CourseLesson {
   id: string;
   subjectId: string;
   number: number;
-  numberEnd?: number;
   kind: LessonKind;
   title?: string;
   topic?: string;
@@ -143,7 +142,7 @@ export interface Material {
   label: string;
   kind: "file" | "link" | "textbook" | "recording" | "presentation" | "gradebook";
   storage: "upload" | "link";
-  scope?: "general" | "subject" | "topic" | "lesson" | "coursework" | "thesis";
+  scope?: "general" | "subject" | "topic" | "lesson" | "thesis";
   lessonId?: string | null;
   topicId?: string | null;
   lessonIds?: string[];
@@ -190,14 +189,6 @@ export interface ThesisState {
   milestones?: ThesisMilestone[];
 }
 
-export interface DiplomaGrade {
-  id: string;
-  year: 1 | 2;
-  module: 1 | 2 | 3 | 4;
-  subject: string;
-  grade: string;
-}
-
 export interface Activity {
   id: string;
   title: string;
@@ -228,9 +219,7 @@ export interface PlannerState {
   notes: Note[];
   schedule: ScheduleEvent[];
   materials: Material[];
-  coursework: ThesisState;
   thesis: ThesisState;
-  diplomaGrades: DiplomaGrade[];
   activities: Activity[];
   sessions: StudySession[];
 }

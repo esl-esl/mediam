@@ -43,38 +43,6 @@ export function subjectModules(subject: Subject) {
   return [...new Set(modules.filter((item) => item >= 1 && item <= 4))].sort();
 }
 
-function timeValue(value?: string) {
-  if (!value) return Number.POSITIVE_INFINITY;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
-}
-
-export function compareLessonsChronologically(a: CourseLesson, b: CourseLesson) {
-  const aTime = timeValue(a.date); const bTime = timeValue(b.date);
-  if (aTime !== bTime) return aTime < bTime ? -1 : 1;
-  return a.number - b.number || (a.title ?? "").localeCompare(b.title ?? "", "ru");
-}
-
-export function compareTasksChronologically(a: StudyTask, b: StudyTask) {
-  return timeValue(a.dueDate) - timeValue(b.dueDate) || timeValue(a.createdAt) - timeValue(b.createdAt) || a.title.localeCompare(b.title, "ru");
-}
-
-export function compareSubjectsByStudyOrder(a: Subject, b: Subject) {
-  return a.year - b.year || (subjectModules(a)[0] ?? 1) - (subjectModules(b)[0] ?? 1) || a.title.localeCompare(b.title, "ru");
-}
-
-export function sortPlannerCollections(state: PlannerState) {
-  state.subjects.sort(compareSubjectsByStudyOrder);
-  state.tasks.sort(compareTasksChronologically);
-  state.lessons.sort(compareLessonsChronologically);
-  state.activities.sort((a, b) => timeValue(a.date) - timeValue(b.date) || a.title.localeCompare(b.title, "ru"));
-  state.schedule.sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start));
-  state.diplomaGrades?.sort((a, b) => a.year - b.year || a.module - b.module || a.subject.localeCompare(b.subject, "ru"));
-  state.materials.sort((a, b) => timeValue(b.createdAt) - timeValue(a.createdAt));
-  state.notes.sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
-  return state;
-}
-
 export function formatSubjectModules(subject: Subject) {
   const modules = subjectModules(subject);
   if (modules.length === 4) return "М1–4";
@@ -84,12 +52,8 @@ export function formatSubjectModules(subject: Subject) {
 
 export function assessmentValueLabel(format: AssessmentFormat, value: string, min = 0, max = 10) {
   if (format === "none" || !value.trim()) return "—";
-  if (format === "numeric") return min === 0 && max === 10 ? value : `${value} / ${max}${min ? ` (от ${min})` : ""}`;
+  if (format === "numeric") return `${value} / ${max}${min ? ` (от ${min})` : ""}`;
   return value;
-}
-
-export function lessonNumberLabel(lesson: Pick<CourseLesson, "number" | "numberEnd">) {
-  return lesson.numberEnd && lesson.numberEnd > lesson.number ? `${lesson.number}–${lesson.numberEnd}` : String(lesson.number);
 }
 
 function normalizedNumericScore(value: number, min: number, max: number) {
@@ -99,14 +63,14 @@ function normalizedNumericScore(value: number, min: number, max: number) {
 
 export function gradeComponentScore(part: GradeComponent, lessons: CourseLesson[] = []) {
   if (part.calculation !== "lesson_average") {
-    if ((part.scoreFormat ?? "numeric") !== "numeric") return null;
-    return normalizedNumericScore(part.score ?? part.minScore ?? 0, part.minScore ?? 0, part.maxScore) ?? 0;
+    if ((part.scoreFormat ?? "numeric") !== "numeric" || part.score === null) return null;
+    return normalizedNumericScore(part.score, part.minScore ?? 0, part.maxScore);
   }
   const scores = lessons
     .filter((lesson) => lesson.subjectId === part.subjectId && (!part.lessonKind || lesson.kind === part.lessonKind) && lesson.assessmentFormat === "numeric" && lesson.assessmentValue.trim())
     .map((lesson) => normalizedNumericScore(Number(lesson.assessmentValue), lesson.assessmentMin ?? 0, lesson.assessmentMax ?? 10))
     .filter((score): score is number => score !== null);
-  return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
+  return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 }
 
 export function gradeForSubject(subjectId: string, grades: GradeComponent[], lessons: CourseLesson[] = []) {
@@ -116,10 +80,13 @@ export function gradeForSubject(subjectId: string, grades: GradeComponent[], les
     if (score === null) return sum;
     return sum + score * part.weight;
   }, 0);
-  const completedWeight = parts.reduce((sum, part) => sum + (gradeComponentScore(part, lessons) === null ? 0 : part.weight), 0);
+  const completedWeight = parts.reduce(
+    (sum, part) => sum + (gradeComponentScore(part, lessons) === null ? 0 : part.weight),
+    0,
+  );
   const totalWeight = parts.reduce((sum, part) => sum + part.weight, 0);
-  const average = completedWeight > 0 ? earned / completedWeight : 0;
-  return { earned, completedWeight, totalWeight, average, forecast: average, parts };
+  const forecast = completedWeight > 0 ? earned / completedWeight : 0;
+  return { earned, completedWeight, totalWeight, forecast, parts };
 }
 
 export function requiredAverage(subject: Subject, grades: GradeComponent[], lessons: CourseLesson[] = []) {
