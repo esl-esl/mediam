@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { createSeedState } from "@/lib/planner-seed";
 import { normalizePlannerState } from "@/lib/planner-migrations";
 import { ensurePlannerState } from "@/lib/planner-safe-state";
-import { sortPlannerCollections } from "@/lib/planner-utils";
 import type { Material, PlannerState } from "@/lib/planner-types";
 
 type SyncStatus = "loading" | "saved" | "saving" | "offline" | "error";
@@ -38,43 +37,16 @@ interface PlannerContextValue {
 
 const PlannerContext = React.createContext<PlannerContextValue | null>(null);
 
-function normalizeState(value: unknown): PlannerState {
-  return sortPlannerCollections(
-    ensurePlannerState(
-      normalizePlannerState(value)
-    )
-  );
-}
-
-function createInitialState(): PlannerState {
-  return sortPlannerCollections(
-    ensurePlannerState(createSeedState())
-  );
-}
-
-function PlannerBootScreen() {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontWeight: 700 }}>HSE Study Space</div>
-        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.55 }}>
-          Загружаю учебное пространство…
-        </div>
-      </div>
-    </div>
-  );
+function safeState(value: unknown): PlannerState {
+  return ensurePlannerState(normalizePlannerState(value));
 }
 
 export function PlannerProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<PlannerState>(createInitialState);
-  const [ready, setReady] = React.useState(false);
+  // ВАЖНО: никаких ready/SSR gates. Начальное состояние всегда полноценное,
+  // поэтому sidebar/workspace рендерятся сразу и не дают белый экран.
+  const [state, setState] = React.useState<PlannerState>(() =>
+    safeState(createSeedState())
+  );
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>("loading");
   const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
 
@@ -98,22 +70,18 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         updatedAt?: string;
       };
 
-      const nextState = normalizeState(payload.state);
-
-      setState(nextState);
+      setState(safeState(payload.state));
       setUpdatedAt(payload.updatedAt ?? null);
       dirty.current = false;
       setSyncStatus("saved");
     } catch (error) {
       console.error("Planner refresh failed", error);
 
-      // Даже если API временно недоступен, приложение получает
-      // полностью безопасное локальное состояние.
-      setState((current) => normalizeState(current));
+      // Не ломаем UI из-за API: оставляем безопасное локальное состояние.
+      setState((current) => safeState(current));
       setSyncStatus("offline");
     } finally {
       hydrated.current = true;
-      setReady(true);
     }
   }, []);
 
@@ -137,7 +105,6 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
     applyTheme();
     media.addEventListener("change", applyTheme);
-
     return () => media.removeEventListener("change", applyTheme);
   }, [state.profile]);
 
@@ -152,12 +119,12 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     setSyncStatus("saving");
 
     try {
-      const safeState = normalizeState(nextState);
+      const normalized = safeState(nextState);
 
       const response = await fetch("/api/planner", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: safeState }),
+        body: JSON.stringify({ state: normalized }),
       });
 
       if (!response.ok) {
@@ -165,7 +132,6 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       }
 
       const payload = (await response.json()) as { updatedAt?: string };
-
       setUpdatedAt(payload.updatedAt ?? new Date().toISOString());
       setSyncStatus("saved");
     } catch (error) {
@@ -183,29 +149,29 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       if (queued.current) {
         queued.current = false;
         dirty.current = true;
-        setState((current) => normalizeState(current));
+        setState((current) => safeState(current));
       }
     }
   }, []);
 
   React.useEffect(() => {
-    if (!ready || !hydrated.current || !dirty.current) return;
+    if (!hydrated.current || !dirty.current) return;
 
     const timer = window.setTimeout(() => {
       void save(state);
     }, 700);
 
     return () => window.clearTimeout(timer);
-  }, [ready, save, state]);
+  }, [save, state]);
 
   const mutate = React.useCallback(
     (recipe: (draft: PlannerState) => void) => {
       dirty.current = true;
 
       setState((current) => {
-        const next = structuredClone(normalizeState(current));
+        const next = structuredClone(safeState(current));
         recipe(next);
-        return normalizeState(next);
+        return safeState(next);
       });
     },
     []
@@ -226,7 +192,6 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       }
     ) => {
       const form = new FormData();
-
       form.append("file", file);
 
       if (subjectId) form.append("subjectId", subjectId);
@@ -266,17 +231,13 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
           throw new Error(payload.error || "Не удалось загрузить файл.");
         }
 
-        setState((current) =>
-          normalizeState({
-            ...current,
-            materials: [
-              ...(Array.isArray(current.materials)
-                ? current.materials
-                : []),
-              payload.material!,
-            ],
-          })
-        );
+        setState((current) => {
+          const safe = safeState(current);
+          return safeState({
+            ...safe,
+            materials: [...safe.materials, payload.material!],
+          });
+        });
 
         toast.success("Материал загружен", { id: loading });
         return payload.material;
@@ -308,22 +269,13 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
           toast.error("Не удалось удалить файл");
           return;
         }
-
-        setState((current) =>
-          normalizeState({
-            ...current,
-            materials: (current.materials ?? []).filter(
-              (item) => item.id !== material.id
-            ),
-          })
-        );
-      } else {
-        mutate((draft) => {
-          draft.materials = (draft.materials ?? []).filter(
-            (item) => item.id !== material.id
-          );
-        });
       }
+
+      mutate((draft) => {
+        draft.materials = draft.materials.filter(
+          (item) => item.id !== material.id
+        );
+      });
 
       toast.success("Материал удалён");
     },
@@ -332,9 +284,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const removeSubject = React.useCallback(
     async (subjectId: string) => {
-      const safeState = normalizeState(state);
+      const safe = safeState(state);
 
-      const uploads = safeState.materials.filter(
+      const uploads = safe.materials.filter(
         (item) =>
           item.subjectId === subjectId &&
           item.storage === "upload"
@@ -384,10 +336,10 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const exportData = React.useCallback(() => {
-    const safeState = normalizeState(state);
+    const normalized = safeState(state);
 
     const blob = new Blob(
-      [JSON.stringify(safeState, null, 2)],
+      [JSON.stringify(normalized, null, 2)],
       { type: "application/json" }
     );
 
@@ -407,9 +359,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const importData = React.useCallback(async (file: File) => {
     try {
-      const parsed = normalizeState(
-        JSON.parse(await file.text())
-      );
+      const parsed = safeState(JSON.parse(await file.text()));
 
       dirty.current = true;
       setState(parsed);
@@ -439,7 +389,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const value = React.useMemo<PlannerContextValue>(
     () => ({
-      state: normalizeState(state),
+      state: safeState(state),
       syncStatus,
       updatedAt,
       mutate,
@@ -465,13 +415,6 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       resetData,
     ]
   );
-
-  // Ключевой момент:
-  // при SSR Worker НЕ рендерит Workspace и вкладки,
-  // поэтому page-specific .filter/.map не могут уронить Worker.
-  if (!ready) {
-    return <PlannerBootScreen />;
-  }
 
   return (
     <PlannerContext.Provider value={value}>
