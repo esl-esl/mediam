@@ -336,6 +336,7 @@ export function createSeedState(base = new Date()): PlannerState {
       { id: "mat-mm-slides", subjectId: "media-management", name: "Бизнес-модели медиакомпаний", label: "Презентация · неделя 1", kind: "presentation", storage: "link", url: "https://edu.hse.ru/", createdAt: iso(today, -2) },
       { id: "mat-nis-book", subjectId: "research-seminar", name: "Как организовать и представить исследовательский проект", label: "В. В. Радаев · учебник", kind: "textbook", storage: "link", url: "https://znanium.ru/catalog/product/2017208", createdAt: iso(today, -1) },
     ],
+    diplomaGrades: [],
     coursework: {
       title: "Курсовая работа 1 курса",
       blocks: [
