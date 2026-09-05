@@ -63,7 +63,7 @@ export async function POST(request: Request) {
               : "general")
     );
 
-    const scope = ["general", "subject", "topic", "lesson", "thesis"].includes(
+    const scope = ["general", "subject", "topic", "lesson", "coursework", "thesis"].includes(
       requestedScope
     )
       ? requestedScope
