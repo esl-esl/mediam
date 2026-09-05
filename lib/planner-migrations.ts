@@ -1,5 +1,5 @@
 import { createSeedState } from "./planner-seed";
-import type { AssessmentFormat, CourseTopic, DiplomaGrade, GradeComponent, GradeEntry, LessonKind, PlannerState, SubjectIconKey, ThesisState } from "./planner-types";
+import type { AssessmentFormat, CourseTopic, DiplomaGrade, GradeComponent, GradeEntry, LessonAssessment, LessonKind, PlannerState, SubjectIconKey, ThesisState } from "./planner-types";
 import { sortPlannerCollections } from "./planner-utils";
 import { inferSubjectIcon, subjectIconKeys } from "./subject-icons";
 
@@ -46,6 +46,9 @@ function normalizeGradeComponent(part: GradeComponent, index: number): GradeComp
     id: sourceEntries[entryIndex]?.id || `${part.id || `grade-${index + 1}`}-mark-${entryIndex + 1}`,
     value: formulaScore(sourceEntries[entryIndex]?.value),
   }));
+  const overrideScore = part.overrideScore === null || part.overrideScore === undefined
+    ? null
+    : formulaScore(part.overrideScore);
   return {
     ...part,
     score: gradeEntries.length ? gradeEntries.reduce((sum, entry) => sum + entry.value, 0) / gradeEntries.length : 0,
@@ -56,6 +59,7 @@ function normalizeGradeComponent(part: GradeComponent, index: number): GradeComp
     requiredCount,
     gradeEntries,
     autoLessonKinds,
+    overrideScore,
   };
 }
 
@@ -100,6 +104,35 @@ export function normalizePlannerState(value: unknown): PlannerState {
     }
     const legacyGrade = lesson.grade ?? null;
     const assessmentFormat = validAssessmentFormats.has(lesson.assessmentFormat) ? lesson.assessmentFormat : "numeric";
+    const sourceAssessments = Array.isArray(lesson.assessments) ? lesson.assessments : [];
+    const assessments: LessonAssessment[] = sourceAssessments.map((source, assessmentIndex) => {
+      const candidate = source as LessonAssessment & { value?: unknown };
+      const rawFormat = candidate.format as AssessmentFormat | undefined;
+      const format = rawFormat && rawFormat !== "none" && validAssessmentFormats.has(rawFormat)
+        ? rawFormat
+        : "numeric";
+      const rawValues = Array.isArray(candidate.values) ? candidate.values : [candidate.value ?? ""];
+      return {
+        id: candidate.id || `${lesson.id}-assessment-${assessmentIndex + 1}`,
+        criterionId: typeof candidate.criterionId === "string" ? candidate.criterionId : null,
+        title: String(candidate.title || "Оценка"),
+        format,
+        values: rawValues.length ? rawValues.map((value) => String(value ?? "")) : [""],
+        min: Number.isFinite(Number(candidate.min)) ? Number(candidate.min) : 0,
+        max: Number.isFinite(Number(candidate.max)) ? Number(candidate.max) : 10,
+      };
+    });
+    if (!assessments.length && assessmentFormat !== "none") {
+      assessments.push({
+        id: `${lesson.id}-assessment-1`,
+        criterionId: null,
+        title: "Оценка",
+        format: assessmentFormat,
+        values: [lesson.assessmentValue ?? (legacyGrade === null ? "" : String(legacyGrade))],
+        min: lesson.assessmentMin ?? 0,
+        max: lesson.assessmentMax ?? 10,
+      });
+    }
     return {
       ...lesson,
       number: lesson.number ?? index + 1,
@@ -111,6 +144,7 @@ export function normalizePlannerState(value: unknown): PlannerState {
       assessmentValue: lesson.assessmentValue ?? (legacyGrade === null ? "" : String(legacyGrade)),
       assessmentMin: lesson.assessmentMin ?? 0,
       assessmentMax: lesson.assessmentMax ?? 10,
+      assessments,
       grade: legacyGrade,
       notes: lesson.notes ?? "",
     };
