@@ -27,7 +27,7 @@ interface PlannerContextValue {
 const PlannerContext = React.createContext<PlannerContextValue | null>(null);
 
 export function PlannerProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<PlannerState>(() => normalizePlannerState(createSeedState()));
+  const [state, setState] = React.useState<PlannerState>(() => ensurePlannerState(createSeedState()));
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>("loading");
   const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
   const hydrated = React.useRef(false);
