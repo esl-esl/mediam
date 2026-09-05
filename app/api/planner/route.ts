@@ -3,9 +3,10 @@ import { getDb } from "@/db";
 import { materials, plannerStates } from "@/db/schema";
 import { createSeedState } from "@/lib/planner-seed";
 import { normalizePlannerState } from "@/lib/planner-migrations";
+import { sortPlannerCollections } from "@/lib/planner-utils";
 import type { Material, PlannerState } from "@/lib/planner-types";
 import { getDisplayName, getUserId } from "@/lib/server-user";
-import { deleteStoredFiles } from "@/lib/supabase-storage";
+import { removeStorageObjects } from "@/lib/supabase-storage";
 
 function databaseError(error: unknown) {
   console.error("Planner database error", error);
@@ -66,6 +67,9 @@ export async function GET(request: Request) {
       .where(eq(materials.userId, userId))
       .orderBy(asc(materials.createdAt));
 
+    const savedUploadMetadata = new Map(
+      state.materials.filter((item) => item.storage === "upload").map((item) => [item.id, item])
+    );
     const uploadMaterials: Material[] = uploaded.map((item) => ({
       id: item.id,
       subjectId: item.subjectId,
@@ -73,6 +77,7 @@ export async function GET(request: Request) {
       topicId: item.topicId,
       lessonIds: parseIds(item.lessonIds, item.lessonId),
       topicIds: parseIds(item.topicIds, item.topicId),
+      tags: savedUploadMetadata.get(item.id)?.tags ?? [],
       scope: item.scope as Material["scope"],
       name: item.name,
       label: item.label,
@@ -87,6 +92,7 @@ export async function GET(request: Request) {
       ...state.materials.filter((item) => item.storage !== "upload"),
       ...uploadMaterials,
     ];
+    sortPlannerCollections(state);
 
     return Response.json({ state, revision: row.revision, updatedAt: row.updatedAt });
   } catch (error) {
@@ -107,11 +113,7 @@ export async function PUT(request: Request) {
       return Response.json({ error: "Некорректный формат данных." }, { status: 400 });
     }
 
-    const normalized = normalizePlannerState(body.state);
-    const state: PlannerState = {
-      ...normalized,
-      materials: normalized.materials.filter((item) => item.storage !== "upload"),
-    };
+    const state: PlannerState = normalizePlannerState(body.state);
     const db = getDb();
     const [current] = await db
       .select({ revision: plannerStates.revision })
@@ -142,7 +144,7 @@ export async function DELETE(request: Request) {
   try {
     const db = getDb();
     const uploaded = await db.select({ r2Key: materials.r2Key }).from(materials).where(eq(materials.userId, userId));
-    if (uploaded.length) await deleteStoredFiles(uploaded.map((item) => item.r2Key));
+    if (uploaded.length) await removeStorageObjects(uploaded.map((item) => item.r2Key));
     await db.delete(materials).where(eq(materials.userId, userId));
     await db.delete(plannerStates).where(eq(plannerStates.userId, userId));
     return Response.json({ ok: true });
