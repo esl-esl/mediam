@@ -31,6 +31,33 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div className="grid gap-2"><Label>{label}</Label>{children}</div>;
 }
 
+function lessonNumbersLabel(lesson: { number: number; numbers?: number[] }) {
+  const source =
+    Array.isArray(lesson.numbers) && lesson.numbers.length
+      ? lesson.numbers
+      : [lesson.number];
+  const numbers = [
+    ...new Set(
+      source
+        .map(Number)
+        .filter((item) => Number.isInteger(item) && item > 0)
+    ),
+  ].sort((a, b) => a - b);
+
+  if (!numbers.length) return String(lesson.number ?? "");
+  if (
+    numbers.length > 1 &&
+    numbers.every(
+      (value, index) =>
+        index === 0 || value === numbers[index - 1] + 1
+    )
+  ) {
+    return `${numbers[0]}–${numbers[numbers.length - 1]}`;
+  }
+
+  return numbers.join(", ");
+}
+
 export function RelationPicker({ subjectId, lessonIds, topicIds, onLessonIdsChange, onTopicIdsChange }: {
   subjectId: string;
   lessonIds: string[];
@@ -44,7 +71,7 @@ export function RelationPicker({ subjectId, lessonIds, topicIds, onLessonIdsChan
   const topics = state.topics.filter((item) => item.subjectId === subjectId);
   const toggle = (values: string[], value: string, checked: boolean) => checked ? [...new Set([...values, value])] : values.filter((item) => item !== value);
   return <div className="grid gap-3 rounded-2xl border border-border/65 bg-muted/25 p-3 sm:grid-cols-2">
-    <Field label="Связанные занятия"><div className="max-h-36 space-y-1 overflow-y-auto pr-1">{lessons.map((lesson) => <label key={lesson.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-background/65"><Checkbox checked={lessonIds.includes(lesson.id)} onCheckedChange={(checked) => onLessonIdsChange(toggle(lessonIds, lesson.id, checked === true))} /><span className="truncate">{lesson.number}. {lesson.title || lessonKindLabels[lesson.kind]}</span></label>)}{!lessons.length ? <span className="text-sm text-muted-foreground">Занятий пока нет</span> : null}</div></Field>
+    <Field label="Связанные занятия"><div className="max-h-36 space-y-1 overflow-y-auto pr-1">{lessons.map((lesson) => <label key={lesson.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-background/65"><Checkbox checked={lessonIds.includes(lesson.id)} onCheckedChange={(checked) => onLessonIdsChange(toggle(lessonIds, lesson.id, checked === true))} /><span className="truncate">{lessonNumbersLabel(lesson)}. {lesson.title || lessonKindLabels[lesson.kind]}</span></label>)}{!lessons.length ? <span className="text-sm text-muted-foreground">Занятий пока нет</span> : null}</div></Field>
     <Field label="Связанные темы"><div className="max-h-36 space-y-1 overflow-y-auto pr-1">{topics.map((topic) => <label key={topic.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-background/65"><Checkbox checked={topicIds.includes(topic.id)} onCheckedChange={(checked) => onTopicIdsChange(toggle(topicIds, topic.id, checked === true))} /><span className="truncate">{topic.title}</span></label>)}{!topics.length ? <span className="text-sm text-muted-foreground">Тем пока нет</span> : null}</div></Field>
   </div>;
 }
