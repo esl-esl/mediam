@@ -11,16 +11,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Activity, GradeComponent, LessonKind, Material, Note, StudyTask, Subject, SubjectIconKey } from "@/lib/planner-types";
+import type { Activity, AssessmentFormat, GradeComponent, LessonKind, Material, Note, StudyTask, Subject, SubjectIconKey } from "@/lib/planner-types";
 import { inferSubjectIcon } from "@/lib/subject-icons";
-import { compareLessonsChronologically, lessonKindLabels, lessonNumberLabel, uid } from "@/lib/planner-utils";
+import { assessmentFormatLabels, lessonKindLabels, uid } from "@/lib/planner-utils";
 import { cn } from "@/lib/utils";
 import { usePlanner } from "./planner-provider";
 import { SubjectIcon, subjectIconOptions } from "./subject-icon";
 
-function toLocalInput(value?: string) {
+function toLocalInput(value?: string | Date) {
   const date = value ? new Date(value) : new Date(Date.now() + 86_400_000);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  return new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000
+  )
+    .toISOString()
+    .slice(0, 16);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -36,17 +40,27 @@ export function RelationPicker({ subjectId, lessonIds, topicIds, onLessonIdsChan
 }) {
   const { state } = usePlanner();
   if (subjectId === "none") return null;
-  const lessons = state.lessons.filter((item) => item.subjectId === subjectId).sort(compareLessonsChronologically);
-  const topics = state.topics.filter((item) => item.subjectId === subjectId).sort((a, b) => a.title.localeCompare(b.title, "ru"));
+  const lessons = state.lessons.filter((item) => item.subjectId === subjectId).sort((a, b) => a.number - b.number);
+  const topics = state.topics.filter((item) => item.subjectId === subjectId);
   const toggle = (values: string[], value: string, checked: boolean) => checked ? [...new Set([...values, value])] : values.filter((item) => item !== value);
-  return <div className="grid gap-2.5 rounded-[14px] border border-border/65 bg-muted/25 p-2.5 sm:grid-cols-2">
-    <Field label="Связанные занятия"><div className="max-h-36 space-y-0.5 overflow-y-auto pr-1">{lessons.map((lesson) => <label key={lesson.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-background/65"><Checkbox checked={lessonIds.includes(lesson.id)} onCheckedChange={(checked) => onLessonIdsChange(toggle(lessonIds, lesson.id, checked === true))} /><span className="min-w-0 flex-1 truncate">{lessonKindLabels[lesson.kind]} {lessonNumberLabel(lesson)} · {lesson.title || lessonKindLabels[lesson.kind]}</span>{lesson.date ? <span className="shrink-0 text-[10px] text-muted-foreground">{new Date(lesson.date).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span> : null}</label>)}{!lessons.length ? <span className="text-sm text-muted-foreground">Занятий пока нет</span> : null}</div></Field>
-    <Field label="Связанные темы"><div className="max-h-36 space-y-0.5 overflow-y-auto pr-1">{topics.map((topic) => <label key={topic.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-background/65"><Checkbox checked={topicIds.includes(topic.id)} onCheckedChange={(checked) => onTopicIdsChange(toggle(topicIds, topic.id, checked === true))} /><span className="truncate">{topic.title}</span></label>)}{!topics.length ? <span className="text-sm text-muted-foreground">Тем пока нет</span> : null}</div></Field>
+  return <div className="grid gap-3 rounded-2xl border border-border/65 bg-muted/25 p-3 sm:grid-cols-2">
+    <Field label="Связанные занятия"><div className="max-h-36 space-y-1 overflow-y-auto pr-1">{lessons.map((lesson) => <label key={lesson.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-background/65"><Checkbox checked={lessonIds.includes(lesson.id)} onCheckedChange={(checked) => onLessonIdsChange(toggle(lessonIds, lesson.id, checked === true))} /><span className="truncate">{lesson.number}. {lesson.title || lessonKindLabels[lesson.kind]}</span></label>)}{!lessons.length ? <span className="text-sm text-muted-foreground">Занятий пока нет</span> : null}</div></Field>
+    <Field label="Связанные темы"><div className="max-h-36 space-y-1 overflow-y-auto pr-1">{topics.map((topic) => <label key={topic.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-background/65"><Checkbox checked={topicIds.includes(topic.id)} onCheckedChange={(checked) => onTopicIdsChange(toggle(topicIds, topic.id, checked === true))} /><span className="truncate">{topic.title}</span></label>)}{!topics.length ? <span className="text-sm text-muted-foreground">Тем пока нет</span> : null}</div></Field>
   </div>;
 }
 
-export function TaskDialog({ open, onOpenChange, task, defaultSubjectId = null }: {
-  open: boolean; onOpenChange: (open: boolean) => void; task?: StudyTask | null; defaultSubjectId?: string | null;
+export function TaskDialog({
+  open,
+  onOpenChange,
+  task,
+  defaultSubjectId = null,
+  defaultDueDate = null,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  task?: StudyTask | null;
+  defaultSubjectId?: string | null;
+  defaultDueDate?: string | Date | null;
 }) {
   const { state, mutate } = usePlanner();
   const [title, setTitle] = React.useState("");
@@ -61,11 +75,20 @@ export function TaskDialog({ open, onOpenChange, task, defaultSubjectId = null }
 
   React.useEffect(() => {
     if (!open) return;
-    setTitle(task?.title ?? ""); setSubjectId(task?.subjectId ?? defaultSubjectId ?? "none");
-    setType(task?.type ?? "homework"); setDueDate(toLocalInput(task?.dueDate)); setStatus(task?.status ?? "todo");
-    setPriority(task?.priority ?? "medium"); setMinutes(String(task?.estimatedMinutes ?? 60)); setNotes(task?.notes ?? "");
-    setSubtasks(task?.subtasks.map((item) => item.title).join("\n") ?? "");
-  }, [defaultSubjectId, open, task]);
+    setTitle(task?.title ?? "");
+    setSubjectId(task?.subjectId ?? defaultSubjectId ?? "none");
+    setType(task?.type ?? "homework");
+    setDueDate(
+      toLocalInput(task?.dueDate ?? defaultDueDate ?? undefined)
+    );
+    setStatus(task?.status ?? "todo");
+    setPriority(task?.priority ?? "medium");
+    setMinutes(String(task?.estimatedMinutes ?? 60));
+    setNotes(task?.notes ?? "");
+    setSubtasks(
+      task?.subtasks.map((item) => item.title).join("\n") ?? ""
+    );
+  }, [defaultDueDate, defaultSubjectId, open, task]);
 
   function submit(event: React.FormEvent) {
     event.preventDefault(); if (!title.trim()) return;
@@ -100,7 +123,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultSubjectId = null }
   </form></DialogContent></Dialog>;
 }
 
-const courseColors = ["#0050CF", "#7C3AED", "#F04438", "#F97316", "#E0A000", "#00A878", "#00A6B2", "#008ED6", "#E53683", "#C43ED8"];
+const courseColors = ["#2563EB", "#7448D8", "#E04B35", "#0F8B6D", "#BF7A00", "#C23B72", "#0E7490", "#475569", "#7C3AED", "#DC2626"];
 
 export function SubjectDialog({ open, onOpenChange, subject }: { open: boolean; onOpenChange: (open: boolean) => void; subject?: Subject | null }) {
   const { mutate } = usePlanner();
@@ -130,7 +153,7 @@ export function SubjectDialog({ open, onOpenChange, subject }: { open: boolean; 
     <Field label="Название"><Input value={form.title} onChange={(event) => setTitle(event.target.value)} autoFocus /></Field>
     <div className="grid gap-4 sm:grid-cols-2"><Field label="Короткое название"><Input value={form.shortTitle} onChange={(event) => set("shortTitle", event.target.value)} /></Field><Field label="Тип"><Select value={form.status} onValueChange={(value) => set("status", value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="required">Обязательный</SelectItem><SelectItem value="elective">По выбору</SelectItem><SelectItem value="magolego">МагоЛего</SelectItem></SelectContent></Select></Field></div>
     <Field label="Иконка"><div className="grid grid-cols-7 gap-2 sm:grid-cols-11">{[...subjectIconOptions, "letter" as const].map((icon) => <button key={icon} type="button" aria-label={`Иконка ${icon}`} title={icon} onClick={() => { setManualIcon(true); set("icon", icon); }} className={cn("grid aspect-square place-items-center rounded-xl border bg-background transition hover:bg-muted", form.icon === icon && "border-[#0050CF] bg-[#0050CF]/8 text-[#0050CF] ring-1 ring-[#0050CF]")}><SubjectIcon subject={{ ...iconSubject, icon }} /></button>)}</div></Field>
-    <div className="grid gap-4 sm:grid-cols-2"><Field label="Курс"><Select value={form.year} onValueChange={(value) => set("year", value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 курс</SelectItem><SelectItem value="2">2 курс</SelectItem></SelectContent></Select></Field><Field label="Кредиты"><Input type="number" min="0" max="30" value={form.credits} onChange={(event) => set("credits", event.target.value)} /></Field></div>
+    <div className="grid gap-4 sm:grid-cols-2"><Field label="Курс"><Input type="number" min="1" max="5" value={form.year} onChange={(event) => set("year", event.target.value)} /></Field><Field label="Кредиты"><Input type="number" min="0" max="30" value={form.credits} onChange={(event) => set("credits", event.target.value)} /></Field></div>
     <Field label="Модули"><div className="grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((module) => <button key={module} type="button" onClick={() => setModules((current) => current.includes(module) ? current.length > 1 ? current.filter((item) => item !== module) : current : [...current, module].sort())} className={cn("rounded-xl border px-3 py-2 text-sm font-semibold transition", modules.includes(module) ? "border-[#0050CF] bg-[#0050CF] text-white shadow-[0_8px_22px_rgba(0,80,207,.22)]" : "bg-background/65 hover:bg-muted")}>М{module}</button>)}</div></Field>
     <Field label="Цвет"><div className="flex flex-wrap gap-2">{courseColors.map((color) => <button key={color} type="button" aria-label={color} onClick={() => set("color", color)} className="size-9 rounded-full border-2" style={{ backgroundColor: color, borderColor: form.color === color ? "var(--foreground)" : "transparent" }} />)}<Input type="color" value={form.color} onChange={(event) => set("color", event.target.value)} className="h-9 w-14 p-1" /></div></Field>
     <div className="grid gap-4 sm:grid-cols-2"><Field label="Паттерн"><Select value={form.pattern} onValueChange={(value) => set("pattern", value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="grid">Сетка</SelectItem><SelectItem value="waves">Волны</SelectItem><SelectItem value="dots">Точки</SelectItem><SelectItem value="blocks">Блоки</SelectItem><SelectItem value="lines">Линии</SelectItem><SelectItem value="orbit">Орбита</SelectItem></SelectContent></Select></Field><Field label="Язык"><Select value={form.language} onValueChange={(value) => set("language", value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="RU">Русский</SelectItem><SelectItem value="EN">English</SelectItem></SelectContent></Select></Field></div>
@@ -168,22 +191,27 @@ export function MaterialDialog({ open, onOpenChange, defaultSubjectId = null, de
 export function GradePartDialog({ open, onOpenChange, subjectId, part }: { open: boolean; onOpenChange: (open: boolean) => void; subjectId: string; part?: GradeComponent | null }) {
   const { mutate } = usePlanner();
   const [title, setTitle] = React.useState(""); const [weight, setWeight] = React.useState("20");
-  const [score, setScore] = React.useState("0");
+  const [score, setScore] = React.useState(""); const [scoreText, setScoreText] = React.useState("");
+  const [minScore, setMinScore] = React.useState("0"); const [maxScore, setMaxScore] = React.useState("10");
+  const [scoreFormat, setScoreFormat] = React.useState<AssessmentFormat>("numeric");
   const [calculation, setCalculation] = React.useState<"single" | "lesson_average">("single"); const [lessonKind, setLessonKind] = React.useState<LessonKind>("seminar");
   React.useEffect(() => {
     if (!open) return;
     setTitle(part?.title ?? ""); setWeight(String((part?.weight ?? .2) * 100));
-    setScore(part?.score == null ? "0" : String(part.score)); setCalculation(part?.calculation ?? "single"); setLessonKind(part?.lessonKind ?? "seminar");
+    setScore(part?.score == null ? "" : String(part.score)); setScoreText(part?.scoreText ?? "");
+    setMinScore(String(part?.minScore ?? 0)); setMaxScore(String(part?.maxScore ?? 10));
+    setScoreFormat(part?.scoreFormat ?? "numeric"); setCalculation(part?.calculation ?? "single"); setLessonKind(part?.lessonKind ?? "seminar");
   }, [open, part]);
   function submit(event: React.FormEvent) {
     event.preventDefault(); if (!title.trim()) return;
+    const minimum = Number(minScore) || 0; const maximum = Math.max(minimum + 1, Number(maxScore) || 10);
     mutate((draft) => {
-      const next: GradeComponent = { id: part?.id ?? uid("grade"), subjectId, title: title.trim(), weight: Math.max(0, Math.min(100, Number(weight))) / 100, score: calculation === "single" ? Math.max(0, Math.min(10, Number(score) || 0)) : null, maxScore: 10, minScore: 0, scoreFormat: calculation === "single" ? "numeric" : "none", scoreText: "", calculation, lessonKind: calculation === "lesson_average" ? lessonKind : undefined };
+      const next: GradeComponent = { id: part?.id ?? uid("grade"), subjectId, title: title.trim(), weight: Math.max(0, Math.min(100, Number(weight))) / 100, score: calculation === "single" && scoreFormat === "numeric" && score !== "" ? Math.max(minimum, Math.min(maximum, Number(score))) : null, maxScore: maximum, minScore: minimum, scoreFormat: calculation === "single" ? scoreFormat : "none", scoreText: calculation === "single" && (scoreFormat === "plusminus" || scoreFormat === "text") ? scoreText.trim() : "", calculation, lessonKind: calculation === "lesson_average" ? lessonKind : undefined };
       const index = draft.grades.findIndex((item) => item.id === next.id); if (index >= 0) draft.grades[index] = next; else draft.grades.push(next);
     });
     toast.success("Формула обновлена"); onOpenChange(false);
   }
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl"><form onSubmit={submit} className="grid gap-4"><DialogHeader><DialogTitle>{part ? "Изменить элемент формулы" : "Добавить элемент формулы"}</DialogTitle></DialogHeader><Field label="Название"><Input value={title} onChange={(event) => setTitle(event.target.value)} autoFocus /></Field><div className="grid gap-3 sm:grid-cols-2"><Field label="Вес, %"><Input type="number" min="0" max="100" value={weight} onChange={(event) => setWeight(event.target.value)} /></Field><Field label="Источник"><Select value={calculation} onValueChange={(value) => setCalculation(value as typeof calculation)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="single">Отдельная оценка</SelectItem><SelectItem value="lesson_average">Среднее занятий</SelectItem></SelectContent></Select></Field></div>{calculation === "lesson_average" ? <Field label="Тип занятий"><Select value={lessonKind} onValueChange={(value) => setLessonKind(value as LessonKind)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(lessonKindLabels) as LessonKind[]).map((kind) => <SelectItem key={kind} value={kind}>{lessonKindLabels[kind]}</SelectItem>)}</SelectContent></Select></Field> : <Field label="Оценка"><Input type="number" min="0" max="10" step="any" value={score} onChange={(event) => setScore(event.target.value)} /></Field>}<DialogFooter><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Отмена</Button><Button type="submit">Сохранить</Button></DialogFooter></form></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl"><form onSubmit={submit} className="grid gap-4"><DialogHeader><DialogTitle>{part ? "Изменить элемент формулы" : "Добавить элемент формулы"}</DialogTitle></DialogHeader><Field label="Название"><Input value={title} onChange={(event) => setTitle(event.target.value)} autoFocus /></Field><div className="grid gap-3 sm:grid-cols-2"><Field label="Вес, %"><Input type="number" min="0" max="100" value={weight} onChange={(event) => setWeight(event.target.value)} /></Field><Field label="Источник"><Select value={calculation} onValueChange={(value) => setCalculation(value as typeof calculation)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="single">Отдельная отметка</SelectItem><SelectItem value="lesson_average">Все занятия одного типа</SelectItem></SelectContent></Select></Field></div>{calculation === "lesson_average" ? <Field label="Тип занятий"><Select value={lessonKind} onValueChange={(value) => setLessonKind(value as LessonKind)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(lessonKindLabels) as LessonKind[]).map((kind) => <SelectItem key={kind} value={kind}>{lessonKindLabels[kind]}</SelectItem>)}</SelectContent></Select></Field> : <><Field label="Формат отметки"><Select value={scoreFormat} onValueChange={(value) => setScoreFormat(value as AssessmentFormat)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(assessmentFormatLabels) as AssessmentFormat[]).map((format) => <SelectItem key={format} value={format}>{assessmentFormatLabels[format]}</SelectItem>)}</SelectContent></Select></Field>{scoreFormat === "numeric" ? <div className="grid grid-cols-3 gap-3"><Field label="От"><Input type="number" step="any" value={minScore} onChange={(event) => setMinScore(event.target.value)} /></Field><Field label="До"><Input type="number" step="any" value={maxScore} onChange={(event) => setMaxScore(event.target.value)} /></Field><Field label="Получено"><Input type="number" step="any" value={score} onChange={(event) => setScore(event.target.value)} placeholder="—" /></Field></div> : scoreFormat === "plusminus" ? <Field label="Отметка"><Select value={scoreText || "empty"} onValueChange={(value) => setScoreText(value === "empty" ? "" : value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="empty">Пока нет</SelectItem><SelectItem value="+">+</SelectItem><SelectItem value="±">±</SelectItem><SelectItem value="−">−</SelectItem></SelectContent></Select></Field> : scoreFormat === "text" ? <Field label="Отметка"><Input value={scoreText} onChange={(event) => setScoreText(event.target.value)} placeholder="зачёт, отлично, принято…" /></Field> : null}</>}<DialogFooter><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Отмена</Button><Button type="submit">Сохранить</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
 export function NoteDialog({ open, onOpenChange, note, defaultSubjectId = null, defaultLessonIds, defaultTopicIds }: { open: boolean; onOpenChange: (open: boolean) => void; note?: Note | null; defaultSubjectId?: string | null; defaultLessonIds?: string[]; defaultTopicIds?: string[] }) {
