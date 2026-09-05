@@ -26,9 +26,10 @@ interface PlannerContextValue {
 
 const PlannerContext = React.createContext<PlannerContextValue | null>(null);
 const THEME_STORAGE_KEY = "study-space-theme";
+const INITIAL_RENDER_DATE = new Date("2026-01-15T12:00:00.000Z");
 
 export function PlannerProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<PlannerState>(() => normalizePlannerState(createSeedState()));
+  const [state, setState] = React.useState<PlannerState>(() => createSeedState(INITIAL_RENDER_DATE));
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>("loading");
   const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
   const hydrated = React.useRef(false);
@@ -38,8 +39,10 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = React.useCallback(async () => {
     setSyncStatus("loading");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10_000);
     try {
-      const response = await fetch("/api/planner", { cache: "no-store" });
+      const response = await fetch("/api/planner", { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("Planner API unavailable");
       const payload = (await response.json()) as { state: PlannerState; updatedAt?: string };
       setState(normalizePlannerState(payload.state));
@@ -50,6 +53,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       console.error(error);
       setSyncStatus("offline");
     } finally {
+      window.clearTimeout(timeout);
       hydrated.current = true;
     }
   }, []);
@@ -63,13 +67,14 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     const root = document.documentElement;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const applyTheme = () => {
-      const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+      let stored: string | null = null;
+      try { stored = window.localStorage.getItem(THEME_STORAGE_KEY); } catch { /* Private mode can block storage. */ }
       const mode = syncStatus === "loading" && (stored === "light" || stored === "dark" || stored === "system") ? stored : state.profile.theme;
       const dark = mode === "dark" || (mode === "system" && media.matches);
       root.classList.toggle("dark", dark);
       root.dataset.theme = dark ? "dark" : "light";
       root.style.colorScheme = dark ? "dark" : "light";
-      if (syncStatus !== "loading") window.localStorage.setItem(THEME_STORAGE_KEY, state.profile.theme);
+      if (syncStatus !== "loading") { try { window.localStorage.setItem(THEME_STORAGE_KEY, state.profile.theme); } catch { /* Theme still works for this session. */ } }
     };
     applyTheme();
     media.addEventListener("change", applyTheme);
@@ -118,7 +123,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const mutate = React.useCallback((recipe: (draft: PlannerState) => void) => {
     dirty.current = true;
     setState((current) => {
-      const next = structuredClone(current);
+      const next = typeof globalThis.structuredClone === "function" ? globalThis.structuredClone(current) : JSON.parse(JSON.stringify(current)) as PlannerState;
       recipe(next);
       return sortPlannerCollections(next);
     });
