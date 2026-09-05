@@ -64,7 +64,7 @@ function TopicEditorDialog({ open, onOpenChange, subjectId, topic, onUpload }: {
 
 function LessonEditorDialog({ open, onOpenChange, subjectId, lesson, nextNumber, onUpload }: { open: boolean; onOpenChange: (value: boolean) => void; subjectId: string; lesson?: CourseLesson | null; nextNumber: number; onUpload: (lessonId: string) => void }) {
   const { state, mutate, removeMaterial } = usePlanner(); const [title, setTitle] = React.useState(""); const [kind, setKind] = React.useState<LessonKind>("seminar"); const [date, setDate] = React.useState(""); const [deadline, setDeadline] = React.useState(""); const [topicIds, setTopicIds] = React.useState<string[]>([]); const [notes, setNotes] = React.useState(""); const [assessmentFormat, setAssessmentFormat] = React.useState<AssessmentFormat>("none"); const [assessmentValue, setAssessmentValue] = React.useState(""); const [assessmentMin, setAssessmentMin] = React.useState("0"); const [assessmentMax, setAssessmentMax] = React.useState("10");
-  const topics = state.topics.filter((item) => item.subjectId === subjectId); const subjectColor = state.subjects.find((item) => item.id === subjectId)?.color ?? "#0050CF";
+  const topics = state.topics.filter((item) => item.subjectId === subjectId); const subjectColor = state.subjects.find((item) => item.id === subjectId)?.color ?? "#64748B";
   React.useEffect(() => { if (!open) return; setTitle(lesson?.title ?? ""); setKind(lesson?.kind ?? "seminar"); setDate(dateValue(lesson?.date)); setDeadline(dateValue(lesson?.deadline)); setTopicIds(lesson?.topicIds ?? []); setNotes(lesson?.notes ?? ""); setAssessmentFormat(lesson?.assessmentFormat ?? "none"); setAssessmentValue(lesson?.assessmentValue ?? ""); setAssessmentMin(String(lesson?.assessmentMin ?? 0)); setAssessmentMax(String(lesson?.assessmentMax ?? 10)); }, [lesson, open]);
   function submit(event: React.FormEvent) {
     event.preventDefault(); const id = lesson?.id ?? uid("lesson"); const number = lesson?.number ?? nextNumber; const minimum = Number(assessmentMin) || 0; const maximum = Math.max(minimum + 1, Number(assessmentMax) || 10);
@@ -199,16 +199,11 @@ export function SubjectView({ subjectId }: { subjectId: string }) {
   const today = startOfDay(new Date()); const future = lessons.filter((lesson) => lesson.date && startOfDay(new Date(lesson.date)) > today).sort((a, b) => a.date!.localeCompare(b.date!)); const nextId = future[0]?.id;
   const tone = (lesson: CourseLesson): TimeTone => !lesson.date ? "undated" : isSameDay(new Date(lesson.date), today) ? "active" : startOfDay(new Date(lesson.date)) < today ? "past" : lesson.id === nextId ? "next" : "future";
   return <main className="mx-auto w-full max-w-[1280px] space-y-3.5 px-3 pb-28 pt-4 sm:px-5 lg:px-7 lg:pb-10"><Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Дисциплины</Link>
-    <Panel
-      className="hse-subject-hero relative overflow-hidden border-white/15 text-white"
-      style={{ backgroundColor: subject.color } as React.CSSProperties}
+    <section
+      className="relative isolate overflow-hidden rounded-[20px] border border-white/20 text-white shadow-[0_16px_46px_rgba(15,23,42,.14)]"
+      style={{ background: subject.color } as React.CSSProperties}
     >
-      <div
-        className="course-cover pointer-events-none absolute inset-0 opacity-35"
-        style={{ "--course-color": subject.color } as React.CSSProperties}
-        data-pattern={subject.pattern}
-      />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,.20),transparent_42%,rgba(0,0,0,.12))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,.10),transparent_48%,rgba(0,0,0,.06))]" />
 
       <div className="relative flex items-start gap-3 p-4 sm:p-5">
         <span className="grid size-11 shrink-0 place-items-center rounded-[14px] border border-white/30 bg-white/16 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.28),0_10px_30px_rgba(0,0,0,.14)] backdrop-blur-sm">
@@ -305,7 +300,7 @@ export function SubjectView({ subjectId }: { subjectId: string }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </Panel>
+    </section>
     <Panel className="px-4 py-3"><div className="flex flex-col gap-2 border-l-4 pl-3 sm:flex-row sm:items-center" style={{ borderLeftColor: subject.color }}><span className="shrink-0 text-xs font-semibold uppercase tracking-[.12em] text-muted-foreground">Формула</span><div className="min-w-0 flex-1"><FormulaLine subject={subject} /></div></div></Panel>
     <Accordion type="multiple" defaultValue={["lessons"]} className="space-y-2.5">
       <Section color={subject.color} value="lessons" title="Занятия" icon={BookOpen} action={<Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedLesson(null); }}><Plus />Добавить</Button>}><div className="grid gap-2.5 p-3 sm:grid-cols-2 xl:grid-cols-3">{lessons.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} topics={topics} tone={tone(lesson)} color={subject.color} onOpen={() => setSelectedLesson(lesson)} />)}{!lessons.length ? <p className="col-span-full rounded-[14px] border border-dashed px-3 py-5 text-sm text-muted-foreground">Добавьте первое занятие</p> : null}</div></Section>
