@@ -11,7 +11,12 @@ import {
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 function cleanFilename(value: string) {
-  return value.replace(/[\r\n/\\]/g, "-").slice(0, 180) || "material";
+  return value.normalize("NFC").replace(/[\r\n/\\]/g, "-").trim().slice(0, 180) || "material";
+}
+
+function storageObjectName(value: string) {
+  const extension = value.match(/\.([a-z0-9]{1,16})$/i)?.[1]?.toLowerCase();
+  return extension ? `file.${extension}` : "file";
 }
 
 export async function POST(request: Request) {
@@ -42,7 +47,9 @@ export async function POST(request: Request) {
     const label = String(form.get("label") || "Материал").slice(0, 80);
     const name = cleanFilename(candidate.name);
     const mimeType = candidate.type || "application/octet-stream";
-    const storageKey = `${encodeURIComponent(userId)}/${id}/${name}`;
+    // Keep the original Unicode name in D1, but use an ASCII-only object key.
+    // This avoids failed Supabase requests for Cyrillic, spaces and URL-reserved symbols.
+    const storageKey = `${encodeURIComponent(userId)}/${id}/${storageObjectName(name)}`;
 
     await uploadStoredFile(storageKey, candidate, mimeType);
 
