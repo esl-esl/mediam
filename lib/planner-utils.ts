@@ -70,8 +70,8 @@ export function sortPlannerCollections(state: PlannerState) {
   state.activities.sort((a, b) => timeValue(a.date) - timeValue(b.date) || a.title.localeCompare(b.title, "ru"));
   state.schedule.sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start));
   state.diplomaGrades?.sort((a, b) => a.year - b.year || a.module - b.module || a.subject.localeCompare(b.subject, "ru"));
-  state.materials.sort((a, b) => timeValue(b.createdAt) - timeValue(a.createdAt));
-  state.notes.sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
+  state.materials.sort((a, b) => timeValue(a.createdAt) - timeValue(b.createdAt) || a.name.localeCompare(b.name, "ru"));
+  state.notes.sort((a, b) => timeValue(a.updatedAt) - timeValue(b.updatedAt) || a.title.localeCompare(b.title, "ru"));
   return state;
 }
 
