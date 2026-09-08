@@ -181,6 +181,7 @@ export function normalizePlannerState(value: unknown): PlannerState {
       url: note.url ?? "",
       lessonIds: Array.isArray(note.lessonIds) ? note.lessonIds : [],
       topicIds: Array.isArray(note.topicIds) ? note.topicIds : [],
+      createdAt: note.createdAt ?? note.updatedAt,
     })),
     schedule: Array.isArray(raw.schedule) ? raw.schedule : [],
     materials: (Array.isArray(raw.materials) ? raw.materials : seed.materials).map((material) => ({
