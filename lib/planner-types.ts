@@ -147,6 +147,7 @@ export interface Note {
   topicIds?: string[];
   kind: "lecture" | "seminar" | "idea" | "summary";
   tags: string[];
+  createdAt?: string;
   updatedAt: string;
 }
 
