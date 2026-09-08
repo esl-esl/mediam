@@ -148,7 +148,9 @@ export async function PATCH(request: Request) {
 
 export async function GET(request: Request) {
   const userId = getUserId(request);
-  const id = new URL(request.url).searchParams.get("id");
+  const requestUrl = new URL(request.url);
+  const id = requestUrl.searchParams.get("id");
+  const forceDownload = requestUrl.searchParams.get("download") === "1";
   if (!id) return Response.json({ error: "Не указан файл." }, { status: 400 });
   try {
     const db = getDb();
@@ -158,15 +160,20 @@ export async function GET(request: Request) {
       .where(and(eq(materials.id, id), eq(materials.userId, userId)))
       .limit(1);
     if (!row) return Response.json({ error: "Файл не найден." }, { status: 404 });
-    const object = await downloadStoredFile(row.r2Key);
+    const object = await downloadStoredFile(row.r2Key, request.headers.get("range"));
     if (!object) return Response.json({ error: "Файл не найден в хранилище." }, { status: 404 });
+    const headers = new Headers({
+      "Content-Type": row.mimeType,
+      "Content-Length": object.headers.get("content-length") ?? String(row.size),
+      "Content-Disposition": `${forceDownload ? "attachment" : "inline"}; filename="${storageObjectName(row.name)}"; filename*=UTF-8''${encodeURIComponent(row.name)}`,
+      "Cache-Control": "private, max-age=300",
+      "Accept-Ranges": object.headers.get("accept-ranges") ?? "bytes",
+    });
+    const contentRange = object.headers.get("content-range");
+    if (contentRange) headers.set("Content-Range", contentRange);
     return new Response(object.body, {
-      headers: {
-        "Content-Type": row.mimeType,
-        "Content-Length": String(row.size),
-        "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(row.name)}`,
-        "Cache-Control": "private, max-age=300",
-      },
+      status: object.status,
+      headers,
     });
   } catch (error) {
     console.error("File read error", error);
