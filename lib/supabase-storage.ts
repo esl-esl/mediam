@@ -66,10 +66,13 @@ export async function uploadStoredFile(path: string, file: File, contentType: st
   }
 }
 
-export async function downloadStoredFile(path: string) {
+export async function downloadStoredFile(path: string, range?: string | null) {
+  const headers = authHeaders();
+  if (range) headers.set("Range", range);
+
   const response = await fetch(storageUrl(path), {
     method: "GET",
-    headers: authHeaders(),
+    headers,
   });
 
   if (response.status === 404) return null;
