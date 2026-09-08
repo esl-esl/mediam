@@ -3,7 +3,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { BookMarked, BookOpen, Check, ExternalLink, File, FileSpreadsheet, Link2, MoreHorizontal, Pencil, PlayCircle, Plus, Presentation, Trash2 } from "lucide-react";
+import { BookMarked, BookOpen, Check, Download, ExternalLink, Eye, File, FileQuestion, FileSpreadsheet, Link2, LoaderCircle, MoreHorizontal, Pencil, PlayCircle, Plus, Presentation, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -116,10 +116,67 @@ const materialMeta: Record<Material["kind"], { label: string; icon: typeof File;
   gradebook: { label: "Ведомость", icon: FileSpreadsheet, color: "#008ed6" },
 };
 
+type MaterialPreviewKind = "pdf" | "image" | "video" | "audio" | "text" | "unsupported";
+
+function materialPreviewKind(material: Material): MaterialPreviewKind {
+  const mimeType = material.mimeType?.toLowerCase() ?? "";
+  const extension = material.name.split(".").pop()?.toLowerCase() ?? "";
+  if (mimeType === "application/pdf" || extension === "pdf") return "pdf";
+  if (mimeType.startsWith("image/") || ["avif", "bmp", "gif", "heic", "jpeg", "jpg", "png", "svg", "webp"].includes(extension)) return "image";
+  if (mimeType.startsWith("video/") || ["m4v", "mov", "mp4", "webm"].includes(extension)) return "video";
+  if (mimeType.startsWith("audio/") || ["aac", "flac", "m4a", "mp3", "ogg", "wav"].includes(extension)) return "audio";
+  if (mimeType.startsWith("text/") || ["csv", "html", "json", "log", "md", "rtf", "txt", "xml", "yaml", "yml"].includes(extension)) return "text";
+  return "unsupported";
+}
+
+function downloadMaterialUrl(url: string) {
+  return `${url}${url.includes("?") ? "&" : "?"}download=1`;
+}
+
+function TextFilePreview({ url, size }: { url: string; size?: number }) {
+  const tooLarge = (size ?? 0) > 2 * 1024 * 1024;
+  const [content, setContent] = React.useState<string | null>(null);
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => {
+    if (tooLarge) return;
+    const controller = new AbortController();
+    fetch(url, { cache: "no-store", signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Preview unavailable");
+        return response.text();
+      })
+      .then(setContent)
+      .catch((error) => { if (error instanceof Error && error.name !== "AbortError") setFailed(true); });
+    return () => controller.abort();
+  }, [tooLarge, url]);
+  if (tooLarge) return <div className="grid h-full place-items-center p-6 text-center text-sm text-muted-foreground">Текстовый файл слишком большой для быстрого просмотра.</div>;
+  if (failed) return <div className="grid h-full place-items-center p-6 text-center text-sm text-muted-foreground">Не удалось загрузить предпросмотр.</div>;
+  if (content === null) return <div className="grid h-full place-items-center"><LoaderCircle className="size-6 animate-spin text-[#0050CF]" /></div>;
+  return <pre className="h-full overflow-auto whitespace-pre-wrap break-words bg-background p-4 font-mono text-xs leading-5 sm:p-5 sm:text-sm">{content}</pre>;
+}
+
+function MaterialPreview({ material, url, downloadUrl }: { material: Material; url: string; downloadUrl: string }) {
+  const kind = materialPreviewKind(material);
+  if (kind === "pdf") return <iframe src={`${url}#toolbar=1&navpanes=0`} title={material.name} className="h-full w-full border-0 bg-white" />;
+  // eslint-disable-next-line @next/next/no-img-element -- Private uploads are streamed through the authenticated file endpoint.
+  if (kind === "image") return <div className="grid h-full place-items-center overflow-auto p-3 sm:p-5"><img src={url} alt={material.name} className="max-h-full max-w-full rounded-lg object-contain shadow-sm" /></div>;
+  if (kind === "video") return <div className="grid h-full place-items-center bg-black p-2"><video src={url} controls preload="metadata" className="max-h-full max-w-full" /></div>;
+  if (kind === "audio") return <div className="grid h-full place-items-center p-5"><audio src={url} controls preload="metadata" className="w-full max-w-xl" /></div>;
+  if (kind === "text") return <TextFilePreview url={url} size={material.size} />;
+  return <div className="grid h-full place-items-center p-6 text-center"><div className="max-w-sm"><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-muted"><FileQuestion className="size-6 text-muted-foreground" /></span><p className="mt-3 text-sm font-semibold">Этот формат нельзя показать в браузере</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Файл можно скачать или открыть в подходящем приложении.</p><Button asChild className="mt-4"><a href={downloadUrl}><Download />Скачать</a></Button></div></div>;
+}
+
+function MaterialPreviewDialog({ material, open, onOpenChange }: { material: Material; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const url = material.url || `/api/files?id=${encodeURIComponent(material.id)}`;
+  const downloadUrl = downloadMaterialUrl(url);
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="h-[92dvh] max-h-[900px] max-w-[calc(100%-1rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-5xl"><DialogHeader className="min-w-0 border-b border-border/60 px-3 py-3 pr-12 text-left sm:px-4"><div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><DialogTitle className="truncate pr-1 text-sm sm:text-base">{material.name}</DialogTitle><span className="mt-0.5 block text-[11px] text-muted-foreground">{formatFileSize(material.size)}</span></div><div className="flex shrink-0 gap-1.5"><Button asChild variant="outline" size="sm"><a href={url} target="_blank" rel="noreferrer"><ExternalLink /><span className="hidden sm:inline">Новая вкладка</span></a></Button><Button asChild size="sm"><a href={downloadUrl}><Download /><span>Скачать</span></a></Button></div></div></DialogHeader><div className="min-h-0 overflow-hidden bg-muted/25"><MaterialPreview material={material} url={url} downloadUrl={downloadUrl} /></div></DialogContent></Dialog>;
+}
+
 export function MaterialCard({ material, compact = false }: { material: Material; compact?: boolean }) {
-  const { state, removeMaterial } = usePlanner(); const [confirmOpen, setConfirmOpen] = React.useState(false); const [editOpen, setEditOpen] = React.useState(false); const meta = materialMeta[material.kind] ?? materialMeta.file; const Icon = meta.icon; const subject = state.subjects.find((item) => item.id === material.subjectId);
+  const { state, removeMaterial } = usePlanner(); const [confirmOpen, setConfirmOpen] = React.useState(false); const [editOpen, setEditOpen] = React.useState(false); const [previewOpen, setPreviewOpen] = React.useState(false); const meta = materialMeta[material.kind] ?? materialMeta.file; const Icon = meta.icon; const subject = state.subjects.find((item) => item.id === material.subjectId); const uploaded = material.storage === "upload"; const fileUrl = material.url || `/api/files?id=${encodeURIComponent(material.id)}`; const downloadUrl = downloadMaterialUrl(fileUrl);
   const related = [...(material.lessonIds ?? (material.lessonId ? [material.lessonId] : [])).map((id) => { const lesson = state.lessons.find((item) => item.id === id); return lesson ? `${lessonKindLabels[lesson.kind]} ${lessonNumberLabel(lesson)}` : ""; }), ...(material.topicIds ?? (material.topicId ? [material.topicId] : [])).map((id) => state.topics.find((item) => item.id === id)?.title ?? "")].filter(Boolean);
-  return <><div className={cn("resource-card group flex min-w-0 items-center gap-2.5 rounded-[15px] p-2.5", !compact && "p-3")} style={{ "--card-accent": meta.color } as React.CSSProperties}><span className="card-accent-icon grid size-9 shrink-0 place-items-center rounded-[11px]"><Icon className="size-4.5" /></span><a href={material.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold hover:underline">{material.name}</span><span className="mt-1 flex min-w-0 flex-wrap gap-1"><span className="rounded-md bg-[#0050CF]/9 px-1.5 py-0.5 text-[10px] font-semibold text-[#0050CF]">{meta.label}</span><span className="max-w-36 truncate rounded-md border border-border/55 bg-muted/45 px-1.5 py-0.5 text-[10px] font-medium" style={subject ? { color: subject.color, borderColor: `${subject.color}40` } : undefined}>{subject?.shortTitle ?? "Общее"}</span>{(material.tags ?? []).slice(0, 3).map((tag) => <span key={tag} className="max-w-32 truncate rounded-md border border-border/55 px-1.5 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}{(material.tags?.length ?? 0) > 3 ? <span className="text-[10px] text-muted-foreground">+{material.tags!.length - 3}</span> : null}</span><span className="mt-1 block truncate text-[11px] text-muted-foreground">{material.label || meta.label}{material.storage === "upload" ? ` · ${formatFileSize(material.size)}` : ""}{related.length ? ` · ${related.slice(0, 2).join(", ")}${related.length > 2 ? ` +${related.length - 2}` : ""}` : ""}</span></a><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8 opacity-55 group-hover:opacity-100"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem asChild><a href={material.url} target="_blank" rel="noreferrer"><ExternalLink />Открыть</a></DropdownMenuItem><DropdownMenuItem onSelect={() => setEditOpen(true)}><Pencil />Изменить</DropdownMenuItem><DropdownMenuItem className="text-destructive" onSelect={() => setConfirmOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div><AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить материал?</AlertDialogTitle><AlertDialogDescription>{material.name}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Отмена</AlertDialogCancel><AlertDialogAction className="bg-destructive text-white" onClick={() => void removeMaterial(material)}>Удалить</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog><MaterialDialog open={editOpen} onOpenChange={setEditOpen} material={material} /></>;
+  const cardContent = <><span className="block truncate text-sm font-semibold hover:underline">{material.name}</span><span className="mt-1 flex min-w-0 flex-wrap gap-1"><span className="rounded-md bg-[#0050CF]/9 px-1.5 py-0.5 text-[10px] font-semibold text-[#0050CF]">{meta.label}</span><span className="max-w-36 truncate rounded-md border border-border/55 bg-muted/45 px-1.5 py-0.5 text-[10px] font-medium" style={subject ? { color: subject.color, borderColor: `${subject.color}40` } : undefined}>{subject?.shortTitle ?? "Общее"}</span>{(material.tags ?? []).slice(0, 3).map((tag) => <span key={tag} className="max-w-32 truncate rounded-md border border-border/55 px-1.5 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}{(material.tags?.length ?? 0) > 3 ? <span className="text-[10px] text-muted-foreground">+{material.tags!.length - 3}</span> : null}</span><span className="mt-1 block truncate text-[11px] text-muted-foreground">{material.label || meta.label}{uploaded ? ` · ${formatFileSize(material.size)}` : ""}{related.length ? ` · ${related.slice(0, 2).join(", ")}${related.length > 2 ? ` +${related.length - 2}` : ""}` : ""}</span></>;
+  return <><div className={cn("resource-card group flex min-w-0 items-center gap-2.5 rounded-[15px] p-2.5", !compact && "p-3")} style={{ "--card-accent": meta.color } as React.CSSProperties}><span className="card-accent-icon grid size-9 shrink-0 place-items-center rounded-[11px]"><Icon className="size-4.5" /></span>{uploaded ? <button type="button" onClick={() => setPreviewOpen(true)} className="min-w-0 flex-1 text-left">{cardContent}</button> : <a href={material.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1">{cardContent}</a>}<DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8 opacity-55 group-hover:opacity-100"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">{uploaded ? <><DropdownMenuItem onSelect={() => setPreviewOpen(true)}><Eye />Просмотреть</DropdownMenuItem><DropdownMenuItem asChild><a href={fileUrl} target="_blank" rel="noreferrer"><ExternalLink />Открыть в новой вкладке</a></DropdownMenuItem><DropdownMenuItem asChild><a href={downloadUrl}><Download />Скачать</a></DropdownMenuItem></> : <DropdownMenuItem asChild><a href={material.url} target="_blank" rel="noreferrer"><ExternalLink />Открыть</a></DropdownMenuItem>}<DropdownMenuItem onSelect={() => setEditOpen(true)}><Pencil />Изменить</DropdownMenuItem><DropdownMenuItem className="text-destructive" onSelect={() => setConfirmOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>{uploaded ? <MaterialPreviewDialog material={material} open={previewOpen} onOpenChange={setPreviewOpen} /> : null}<AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить материал?</AlertDialogTitle><AlertDialogDescription>{material.name}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Отмена</AlertDialogCancel><AlertDialogAction className="bg-destructive text-white" onClick={() => void removeMaterial(material)}>Удалить</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog><MaterialDialog open={editOpen} onOpenChange={setEditOpen} material={material} /></>;
 }
 
 export function MaterialsPanel({ subjectId = null, lessonId, topicId, scope, limit, onUpload }: { subjectId?: string | null; lessonId?: string | null; topicId?: string | null; scope?: Material["scope"]; limit?: number; onUpload?: () => void }) {
